@@ -7,6 +7,7 @@ import UAParser from "ua-parser-js";
 import { DUMMYCSV } from "./dummyData"
 
 
+const MIN_TIME_BETWEEN_KEYPRESS_MS = 200
 const CALBIRATION_KEY_REQUIRED_NUMBER = 100
 const TIMEPAUSEBETWEENSTAGES_MS = 1000
 
@@ -110,7 +111,6 @@ export class Calibrator {
     }
 
     handleCalibration(kpType, keyCode, key, timeStamp, e) {
-        // all active words are valid. Push to Keylog
         if (this.isWaitTimer()) {
             e.preventDefault()
             return
@@ -223,9 +223,23 @@ export class Calibrator {
 export class StateHandler {
 
     constructor() {
+
+        
+        // Shared states
         this.activeWord = null;
-        this.words = new Array();
         this.keylog = new Array();
+
+        // Copy task States
+        this.words = new Array();
+
+        // wordByWordTask States
+        this.targetWords = new Array();
+        this.targetWordIndex = 0;
+        this.wordRecordCounts = new Map();
+        this.wordRecordData= new Map();
+        this.wordRecordBuffer = new Array();
+
+
         this.recordingstate = "disabled"; //"enabled","disabled","calibration"
         this.experimentType = 'copy'
         this.UICallbacks = new Map();
@@ -309,10 +323,16 @@ export class StateHandler {
         const key = e.key
         const timeStamp = e.timeStamp
 
-        console.log(keyCode,key,key.charCodeAt())
+        // console.log(keyCode,key,key.charCodeAt())
 
         if (this.recordingstate === "enabled") {
-            return this.handleExperimentRecording(kpType, keyCode, key, timeStamp)
+            if (this.experimentType === "copy"){
+                return this.handleExperimentRecordingCopyTask(kpType, keyCode, key, timeStamp)
+            } else if (this.experimentType === "wordbyword"){
+                return this.handleExperimentRecordingWordByWord(kpType, keyCode, key, timeStamp)
+            } else {
+                return 
+            }
         } else if (this.recordingstate === "disabled") {
             return
         } else if (this.recordingstate === "calibration") {
@@ -324,18 +344,175 @@ export class StateHandler {
     }
 
 
-    handleExperimentRecording(kpType, keyCode, key, timeStamp) {
+    // *********************
+    // ---WORDBYWORD TASK---
+    // *********************
+
+    startNewWord() {
+        this.activeWord = ""
+        this.wordRecordBuffer = new Array()
+        // this.wordRecordBuffer
+    }
+
+
+    processFinishedWord() {
+        // does word exist in wordRecordCounts
+        // const wordExists = this.wordRecordCounts.has(this.activeWord.toLowerCase())
+        const currentWord = this.activeWord.toLowerCase()
+        const currentBufferData = [...this.wordRecordBuffer]
+        const currentTarget = this.targetWords[this.targetWordIndex]
+
+        const isTargetWord = this.checkIsTargetWord(currentWord,currentBufferData,currentTarget)
+        const isWithinTiming = this.checkWithinTiming(currentWord,currentBufferData,currentTarget)
+        const isContainError = this.checkIfContainsError(currentWord,currentBufferData,currentTarget)
+        
+        if (isTargetWord && isWithinTiming && !isContainError){
+            // add the data and update the count
+            this.wordRecordCounts.set(currentWord, this.wordRecordCounts.get(currentWord) + 1)
+            this.wordRecordData.set(currentWord, this.wordRecordData.get(currentWord).push(currentBufferData))
+            this.targetWordIndex += 1
+        } else {
+            // do not add data, do not update the count, do not progress
+            // TODO: I STOPPED HERE
+        }
+
+        // Reset Word State, update UI
+        this.activeWord = ""
+        this.wordRecordBuffer = new Array()
+        this.updateUITextBox()
+    }
+
+    checkIsTargetWord(currentWord,currentBufferData,currentTarget){
+        return currentWord.toLowerCase() == currentTarget.toLowerCase()
+    }
+    
+    checkWithinTiming(currentWord,currentBufferData,currentTarget){
+        const first_entry = null
+        const last_entry = null
+
+        for (let i=0;i<currentBufferData.length;i++){
+            // [kpType, keyCode, key, timeStamp]
+            if (first_entry == null) {  
+                if (currentBufferData[i][0] == KEYDOWN_EVENT && currentBufferData[i][2] == currentWord[0]){
+                    first_entry = currentBufferData[i]
+                }
+            } else {
+                if (currentBufferData[i][0] == KEYDOWN_EVENT && currentBufferData[i][2] == currentWord[currentWord.length-1]){
+                    last_entry = currentBufferData[i]
+                }
+            }
+        }
+
+        if (first_entry == null || last_entry == null){
+            return false
+        }
+
+        if (last_entry[3] - first_entry[3] > (MIN_TIME_BETWEEN_KEYPRESS_MS*currentWord.length)){
+            return false
+        }
+        return true
+    }
+
+    checkIfContainsError(currentWord,currentBufferData,currentTarget){
+        for (let i=0;i<currentBufferData.length;i++){
+            if (currentBufferData[i][0] == KEYDOWN_EVENT){
+                if (is_backspace(currentBufferData[i][1])){
+                    return true
+                }
+            }
+        return false
+        }
+    }
+
+    handleExperimentRecordingWordByWord(kpType, keyCode, key, timeStamp) {
         // Handling Initial word
         if (this.activeWord == null) {
-            this.handle_initialWordCase(kpType, keyCode, key, timeStamp)
+            this.handle_initialWordCaseWordByWord(kpType, keyCode, key, timeStamp)
+        } else {
+            // activeWord
+            this.handle_activeWordCaseCopyTask(kpType, keyCode, key, timeStamp)
+        }
+    }
+
+
+    handle_initialWordCaseWordByWord(kpType, keyCode, key, timeStamp) {
+        if (kpType == KEYDOWN_EVENT) {
+            if (is_char(keyCode)) {
+                this.activeWord = key
+                this.keylog.push([kpType, keyCode, key, timeStamp])
+                this.updateUITextBox()
+            }
+        } else {
+            console.log("weird state")
+        }
+    }
+
+    handle_activeWordCaseWordByWord(kpType, keyCode, key, timeStamp) {
+        // all active words are valid. Push to Keylog
+        this.keylog.push([kpType, keyCode, key, timeStamp])
+        if (kpType == KEYDOWN_EVENT) {
+            if (is_char(keyCode)) {
+                if (this.is_last_letter_whitespace(this.activeWord)) {
+                    // new Word
+                    this.words.push(this.activeWord)
+                    this.activeWord = key
+                    this.updateUITextBox()
+                } else {
+                    // continue Current word
+                    this.activeWord += key
+                    this.updateUITextBox()
+                }
+            } else if (is_space(keyCode)) {
+                // continue Current word
+                this.activeWord += key
+                this.updateUITextBox()
+            } else if (is_paragraph(keyCode)) {
+                // continue Current word
+                this.words.push(this.activeWord)
+                this.activeWord = "\n"
+                this.updateUITextBox()
+            } else if (is_backspace(keyCode)) {
+                if (this.activeWord.length == 0) {
+                    // Backspacing into previous word
+                    if (this.words.length == 0) {
+                        // no more words. set to null
+                        this.activeWord = null
+                        this.updateUITextBox()
+                        return 
+                    }
+                    this.activeWord = this.words.pop()
+                    this.activeWord = this.activeWord.slice(0, this.activeWord.length - 1)
+                    this.updateUITextBox()
+                } else {
+                    this.activeWord = this.activeWord.slice(0, this.activeWord.length - 1)
+                    this.updateUITextBox()
+                }
+            }
+        } else {
+            // we dont need to update the ui here
+            // Nothing visual happens when a key is lifted
+        }
+    }
+
+
+
+    // ***************
+    // ---COPY TASK---
+    // ***************
+
+
+    handleExperimentRecordingCopyTask(kpType, keyCode, key, timeStamp) {
+        // Handling Initial word
+        if (this.activeWord == null) {
+            this.handle_initialWordCaseCopyTask(kpType, keyCode, key, timeStamp)
         } else {
             // activeWord 
-            this.handle_activeWordCase(kpType, keyCode, key, timeStamp)
+            this.handle_activeWordCaseCopyTask(kpType, keyCode, key, timeStamp)
 
         }
     }
 
-    handle_initialWordCase(kpType, keyCode, key, timeStamp) {
+    handle_initialWordCaseCopyTask(kpType, keyCode, key, timeStamp) {
         if (kpType == KEYDOWN_EVENT) {
             if (is_char(keyCode)) {
                 this.activeWord = key
@@ -349,7 +526,7 @@ export class StateHandler {
         }
     }
 
-    handle_activeWordCase(kpType, keyCode, key, timeStamp) {
+    handle_activeWordCaseCopyTask(kpType, keyCode, key, timeStamp) {
         // all active words are valid. Push to Keylog
         this.keylog.push([kpType, keyCode, key, timeStamp])
         if (kpType == KEYDOWN_EVENT) {
@@ -404,6 +581,11 @@ export class StateHandler {
         }
     }
 
+
+    // *****************
+    // ---Calibration---
+    // *****************
+
     initCalibrationRecording() {
         this.recordingstate = "calibration";
         this.calibrator.initCalibration()
@@ -417,6 +599,7 @@ export class StateHandler {
     endCalibrationRecording() {
 
     }
+
     dumpHelper(code) {
         switch (code) {
             case "Backspace":

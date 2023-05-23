@@ -4,9 +4,13 @@ import React, { useState } from "react";
 
 export const _SUBMIT_MODAL_ID = "submit-modal-1"
 
-const SUBMIT_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`;
+// const SUBMIT_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`;
+const SUBMIT_URL = `localhost`;
 
-const VERIFICATION_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`
+
+// const VERIFICATION_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`
+const VERIFICATION_URL = `localhost`
+
 
 
 
