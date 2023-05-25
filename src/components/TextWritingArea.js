@@ -30,13 +30,63 @@ function ActiveWordBlock(word) {
         return <a id="activeWord_0" className="flex-1 max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words">{wordToDisplay}</a>     
     }
     return <a id="activeWord_0" className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words">{wordToDisplay}</a>
-    // return (
-    // <div className="flex-none indicator">
-    //     <span className="indicator-item badge badge-secondary"></span>
-    //     <pre className="flex-none border-primary rounded-sm  select-none bg-base-100 text-4xl font-sans">{wordToDisplay}</pre>
-    // </div>
-    // )
 }
+
+
+function ActiveWordBlock_wordbyword(word, target) {
+    word = word
+    let before = []
+    let lastCorrectIDX = -1
+    let wrongflag = false
+    for (let i = 0; i < word.length; i++) {
+        let activeChar = word[i] == " " ? "▒" : word[i]
+        if (i < target.length) {
+            if (!wrongflag){
+                if (word[i] == target[i]) {
+                    before.push(<span className="text-green-500">{activeChar}</span>)
+                    lastCorrectIDX = i
+                } else {
+                    before.push(<span className="text-red-500">{activeChar}</span>)
+                    wrongflag=true
+                }
+            } else {
+                before.push(<span className="text-red-500">{activeChar}</span>)
+            }
+        } else {
+            before.push(<span className="text-red-500">{activeChar}</span>)
+        }
+    }
+
+    // before.push(<Carot />)\
+    if (word.length == 0){
+        lastCorrectIDX = -1
+    }
+    if (target.length > lastCorrectIDX) {
+        for (let i = lastCorrectIDX+1; i < target.length; i++) {
+            before.push(<span>{target[i]}</span>)
+        }
+    }
+
+    if (target.length >= word.length) {
+        before.push(<span>{" "}</span>)
+    } else if (word[-1] !== " ") {
+        before.push(<span>{" "}</span>)
+    }
+    return <a id="activeWord_0" className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words">{before}</a>
+}
+
+function WordBlock_wordbyword(word, status){
+    const wordToDisplay = word.trim() + ' '
+
+    if (status == "pending") {
+        return <a className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words opacity-50">{wordToDisplay}</a>
+    } else if (status == "recorded") {
+        return <a className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words text-green-500">{wordToDisplay}</a>
+    } else if (status == "notrecorded") {
+        return <a className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words text-amber-500">{wordToDisplay}</a>
+    }
+}
+
 
 function DumpFileButton(props) {
     const dumpfn = props.dumpfn
@@ -52,6 +102,7 @@ function RecordingBlip(props) {
     return
 }
 
+
 export class TextWritingArea extends React.Component {
     constructor(props) {
         super(props);
@@ -66,11 +117,43 @@ export class TextWritingArea extends React.Component {
 
 
     componentDidMount() {
-        this.stateHandler.init_listener(() => this.forceUpdate())
+        this.stateHandler.init_listener()
+        this.stateHandler.setUiCallBack('textbox_general',() => this.forceUpdate())
     }
 
     componentWillUnmount() {
         this.stateHandler.unmount()
+    }
+
+    render_copy_task(words,activeWord){
+        return(
+            <div className="container max-w-fit overflow-y-auto scroll-auto">
+                <div className=" mx-1 py-2 items-center">
+                    {words}{activeWord}<Carot />
+                </div>
+            </div>
+        )
+    }
+
+    renderWordByWord(targetWords,targetWordIndex, activeWord){
+        let res = new Array(targetWords.length)
+        for (let i = 0; i < targetWords.length; i++) {
+            if (i == targetWordIndex) {
+                res.push(ActiveWordBlock_wordbyword(activeWord,targetWords[i][0]))
+            } else if  (i<targetWordIndex) {
+                res.push( WordBlock_wordbyword(targetWords[i][0],targetWords[i][1]))
+            } else {
+                res.push(WordBlock_wordbyword(targetWords[i][0], targetWords[i][1]))
+            }
+        }
+        const rendered = (
+            <div className="container max-w-fit overflow-y-auto scroll-auto">
+                <div className=" mx-1 py-2 items-center">
+                    {res}
+                </div>
+            </div>
+        )
+        return rendered
     }
 
     render() {
@@ -78,15 +161,27 @@ export class TextWritingArea extends React.Component {
         const mystate = this.stateHandler.getStateObj()
         const recording = this.stateHandler.getRecordingState() == "enabled" ? "Recording..." : ""
         // const words= [...mystate.words].concat([mystate.activeWord]).map((word) => WordBlock(word))
-        const words = [...mystate.words].map((word) => WordBlock(word))
-        const activeWord = ActiveWordBlock(mystate.activeWord)
+        
+        let task_object
+        // console.log(mystate)
+        if (mystate.experimentType == "copy"){
+            const words = [...mystate.words].map((word) => WordBlock(word))
+            const activeWord = ActiveWordBlock(mystate.activeWord)
+            task_object = this.render_copy_task(words,activeWord)
+        } else if (mystate.experimentType == "wordbyword"){
+            const targetWords = mystate.targetWords
+            const targetWordIndex = mystate.targetWordIndex
+            const activeWord = mystate.activeWord
+            task_object = this.renderWordByWord(targetWords,targetWordIndex, activeWord)
+        }
+
         return (
             <div className={`flex flex-col h-100 rounded mx-5 px-2 py-1 ring-2 ring-current max-h-[80vh] min-h-[80vh] ${this.stateHandler.calibrator.calibrationResults === null? "hidden":""}`} onMouseEnter={(e) => { this.stateHandler.setRecordingState("enabled") }} onMouseLeave={(e) => this.stateHandler.setRecordingState("disabled")}>
                 <div className="flex items-end">
                     <div className="flex-none mx-auto font-bold text-4xl mt-2">Writing Area</div>
                     <div className='flex-none mx-2 text-l text-red-500 animate-pulse'>{recording}</div>
                     <div className="flex-1"></div>
-                    <div className="flex-none mt-1 hidden">
+                    <div className="flex-none mt-1">
                         <ExperimentTypeSelector StateHandler={this.stateHandler}/>
                     </div>
                     <div className="flex-none">
@@ -96,11 +191,7 @@ export class TextWritingArea extends React.Component {
                         <DumpFileButton dumpfn={() => this.stateHandler.dumpLogToFile(this.stateHandler.saveFiletoDesktop, "desktop")}></DumpFileButton>
                     </div>
                 </div>
-                <div className="container max-w-fit overflow-y-auto scroll-auto">
-                    <div className=" mx-1 py-2 items-center">
-                        {words}{activeWord}<Carot />
-                    </div>
-                </div>
+                {task_object}
             </div>
         );
     }

@@ -4,7 +4,7 @@ import { saveAs } from 'file-saver';
 import JSZip from "jszip";
 import UAParser from "ua-parser-js";
 
-import { DUMMYCSV } from "./dummyData"
+import { DUMMYCSV, DUMMYLIST } from "./dummyData"
 
 
 const MIN_TIME_BETWEEN_KEYPRESS_MS = 200
@@ -219,12 +219,12 @@ export class Calibrator {
 }
 
 
-
+const DUMMY_WORDLIST = DUMMYLIST
 export class StateHandler {
-
     constructor() {
+        // Lifecycle
+        this.isStarted = false;
 
-        
         // Shared states
         this.activeWord = null;
         this.keylog = new Array();
@@ -234,11 +234,13 @@ export class StateHandler {
 
         // wordByWordTask States
         this.targetWords = new Array();
+        // TODO: This is temp
+        this.targetWords = this.generateTargetWords([],DUMMY_WORDLIST)
         this.targetWordIndex = 0;
         this.wordRecordCounts = new Map();
         this.wordRecordData= new Map();
         this.wordRecordBuffer = new Array();
-
+        this.init_word_by_word(this.targetWords)
 
         this.recordingstate = "disabled"; //"enabled","disabled","calibration"
         this.experimentType = 'copy'
@@ -249,25 +251,70 @@ export class StateHandler {
 
     }
 
+    init_word_by_word(targetWords) {
+        for (let i = 0; i < targetWords.length; i++) {
+            this.wordRecordCounts.set(targetWords[i][0], 0)
+            this.wordRecordData.set(targetWords[i][0], new Array())
+        }
+    }
+
+    generateTargetWords(initialList, additions){
+        let intermediate = []
+        for(let i = 0; i < additions.length; i++){
+            intermediate.push([additions[i],"pending"])
+        }
+        return initialList.concat(intermediate)
+    }
+
     getStateObj() {
+        const expType = this.experimentType
+        if (expType === "copy") {
+            return this.getStateObj_copy()
+        } else if (expType === "wordbyword") {
+            return this.getStateObj_wordByWord()
+        }
+    }
+
+    getStateObj_copy() {
         const curr = (this.activeWord == null) ? "" : this.activeWord
         const state = {
             activeWord: curr,
-            words: this.words
+            words: this.words,
+            experimentType: this.experimentType
+        }
+        return state
+    }
+
+    getStateObj_wordByWord() {
+        const curr = (this.activeWord == null) ? "" : this.activeWord
+        const state = {
+            activeWord: curr,
+            targetWords: this.targetWords,
+            targetWordIndex: this.targetWordIndex,
+            experimentType : this.experimentType
         }
         return state
     }
 
     updateExperimentType(type) {
+        // console.log(`update ${type}`)
         this.experimentType = type
+        console.log(`Set Experiment Type to: ${this.experimentType}`)
         this.updateUITextBox()
     }
 
-    init_listener(textboxUICallback) {
-        const handle_Keypress = this.handle_Keypress.bind(this)
-        document.addEventListener("keydown", handle_Keypress, true)
-        document.addEventListener("keyup", handle_Keypress, true)
-        this.UICallbacks.set("textbox", textboxUICallback)
+    init_listener() {
+        if (this.isStarted == false) {
+            this.isStarted = true
+            const handle_Keypress = this.handle_Keypress.bind(this)
+            document.addEventListener("keydown", handle_Keypress, true)
+            document.addEventListener("keyup", handle_Keypress, true)
+        }
+    }
+
+    setUiCallBack(id, callback) {
+        // this.UICallbacks.set("textbox", textboxUICallback)
+        this.UICallbacks.set(id, callback)
     }
 
     unmount() {
@@ -283,7 +330,7 @@ export class StateHandler {
     }
 
     updateUITextBox() {
-        this.UICallbacks.get("textbox")()
+        this.UICallbacks.get("textbox_general")()
         // this.UICallbacks.forEach(UICallback=>UICallback(this.getStateObj()));
     }
 
@@ -348,38 +395,42 @@ export class StateHandler {
     // ---WORDBYWORD TASK---
     // *********************
 
-    startNewWord() {
+    startNewWord_wbw() {
         this.activeWord = ""
         this.wordRecordBuffer = new Array()
         // this.wordRecordBuffer
     }
 
-
-    processFinishedWord() {
+    processFinishedWord_wbw() {
         // does word exist in wordRecordCounts
         // const wordExists = this.wordRecordCounts.has(this.activeWord.toLowerCase())
-        const currentWord = this.activeWord.toLowerCase()
+        const currentWord = this.activeWord.toLowerCase().trim()
         const currentBufferData = [...this.wordRecordBuffer]
-        const currentTarget = this.targetWords[this.targetWordIndex]
+        const currentTarget = this.targetWords[this.targetWordIndex][0]
 
         const isTargetWord = this.checkIsTargetWord(currentWord,currentBufferData,currentTarget)
         const isWithinTiming = this.checkWithinTiming(currentWord,currentBufferData,currentTarget)
+        // const isWithinTiming = true
+
         const isContainError = this.checkIfContainsError(currentWord,currentBufferData,currentTarget)
         
         if (isTargetWord && isWithinTiming && !isContainError){
-            // add the data and update the count
+            // add the data and update the count, update finished word status
             this.wordRecordCounts.set(currentWord, this.wordRecordCounts.get(currentWord) + 1)
-            this.wordRecordData.set(currentWord, this.wordRecordData.get(currentWord).push(currentBufferData))
-            this.targetWordIndex += 1
+            this.wordRecordData.get(currentWord).push(currentBufferData)
+            this.targetWords[this.targetWordIndex][1] = "recorded"
+            this.targetWordIndex+=1
+            console.log(`Word: ${currentWord} added to record.`)
+
         } else {
             // do not add data, do not update the count, do not progress
-            // TODO: I STOPPED HERE
+            console.log(`Word: ${currentWord} not added to record. Reasons: match:${isTargetWord} timing:${isWithinTiming} notError:${!isContainError}`)
+            this.targetWords[this.targetWordIndex][1] = "notrecorded"
+            this.targetWordIndex+=1
         }
 
         // Reset Word State, update UI
-        this.activeWord = ""
-        this.wordRecordBuffer = new Array()
-        this.updateUITextBox()
+        this.startNewWord_wbw()
     }
 
     checkIsTargetWord(currentWord,currentBufferData,currentTarget){
@@ -387,8 +438,9 @@ export class StateHandler {
     }
     
     checkWithinTiming(currentWord,currentBufferData,currentTarget){
-        const first_entry = null
-        const last_entry = null
+        let first_entry = null
+        let last_entry = null
+
 
         for (let i=0;i<currentBufferData.length;i++){
             // [kpType, keyCode, key, timeStamp]
@@ -403,34 +455,41 @@ export class StateHandler {
             }
         }
 
+
         if (first_entry == null || last_entry == null){
             return false
         }
-
         if (last_entry[3] - first_entry[3] > (MIN_TIME_BETWEEN_KEYPRESS_MS*currentWord.length)){
             return false
         }
         return true
     }
 
-    checkIfContainsError(currentWord,currentBufferData,currentTarget){
-        for (let i=0;i<currentBufferData.length;i++){
-            if (currentBufferData[i][0] == KEYDOWN_EVENT){
-                if (is_backspace(currentBufferData[i][1])){
+    checkIfContainsError(currentWord, currentBufferData, currentTarget) {
+        for (let i = 0; i < currentBufferData.length; i++) {
+            if (currentBufferData[i][0] == KEYDOWN_EVENT) {
+                if (is_backspace(currentBufferData[i][1])) {
                     return true
                 }
             }
-        return false
         }
+        return false
     }
 
     handleExperimentRecordingWordByWord(kpType, keyCode, key, timeStamp) {
         // Handling Initial word
+        // console.log(this.activeWord)
+        // console.log(this.targetWords[this.targetWordIndex])
+        // console.log(this.targetWordIndex)
+        // console.log(this.wordRecordCounts)
+        // console.log(this.wordRecordData)
+        // console.log(this.wordRecordBuffer)
+
         if (this.activeWord == null) {
             this.handle_initialWordCaseWordByWord(kpType, keyCode, key, timeStamp)
         } else {
             // activeWord
-            this.handle_activeWordCaseCopyTask(kpType, keyCode, key, timeStamp)
+            this.handle_activeWordCaseWordByWord(kpType, keyCode, key, timeStamp)
         }
     }
 
@@ -440,6 +499,7 @@ export class StateHandler {
             if (is_char(keyCode)) {
                 this.activeWord = key
                 this.keylog.push([kpType, keyCode, key, timeStamp])
+                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                 this.updateUITextBox()
             }
         } else {
@@ -454,37 +514,50 @@ export class StateHandler {
             if (is_char(keyCode)) {
                 if (this.is_last_letter_whitespace(this.activeWord)) {
                     // new Word
-                    this.words.push(this.activeWord)
-                    this.activeWord = key
+                    // this.processFinishedWord_wbw()
+                    // this.activeWord = key
+
+                    this.activeWord += key
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                     this.updateUITextBox()
                 } else {
                     // continue Current word
                     this.activeWord += key
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    // trigger early termination IF the word is the target word
+                    if (this.activeWord.toLowerCase() == this.targetWords[this.targetWordIndex][0].toLowerCase()) {
+                        this.processFinishedWord_wbw()
+                    }
                     this.updateUITextBox()
                 }
             } else if (is_space(keyCode)) {
-                // continue Current word
-                this.activeWord += key
+                if (this.activeWord.length == 0) {
+                    // new word. ignore space
+                }
+                // trigger early termination IF the word is the target word
+                else if (this.activeWord.toLowerCase() == this.targetWords[this.targetWordIndex][0].toLowerCase()) {
+                    this.activeWord += key
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.processFinishedWord_wbw()
+                } else {
+                    // continue Current word
+                    this.activeWord += key
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                }
                 this.updateUITextBox()
             } else if (is_paragraph(keyCode)) {
-                // continue Current word
-                this.words.push(this.activeWord)
-                this.activeWord = "\n"
+                // same behavior as space
+                this.activeWord += key
+                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                 this.updateUITextBox()
             } else if (is_backspace(keyCode)) {
                 if (this.activeWord.length == 0) {
-                    // Backspacing into previous word
-                    if (this.words.length == 0) {
-                        // no more words. set to null
-                        this.activeWord = null
-                        this.updateUITextBox()
-                        return 
-                    }
-                    this.activeWord = this.words.pop()
-                    this.activeWord = this.activeWord.slice(0, this.activeWord.length - 1)
+                    // Do Nothing to active words
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                     this.updateUITextBox()
                 } else {
                     this.activeWord = this.activeWord.slice(0, this.activeWord.length - 1)
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                     this.updateUITextBox()
                 }
             }

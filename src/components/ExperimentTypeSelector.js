@@ -1,8 +1,8 @@
 import React from "react";
 
 function generateExperimentTypeList(stateHandler) {
-    const options = ["Copy", "Short Answer", "Scenario"];
-    return options.map((el) => <li><a onClick={() => stateHandler.updateExperimentType(el)}>{el}</a></li>);
+    const options = ["copy", "wordbyword"];
+    return options.map((el) => <li key = {el} ><a onClick={() => stateHandler.updateExperimentType(el)}>{el}</a></li>);
 }
 export function ExperimentTypeSelector(props) {
     const stateHandler = props.StateHandler;
