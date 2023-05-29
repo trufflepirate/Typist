@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { CalibrationButton } from "./CalibrationModal";
+import { StateHandler } from "../StateHandler";
+const stateHandler = new StateHandler();
+
 
 const _INTRO_MODAL_ID = "intro-modal-1"
 
@@ -12,10 +15,9 @@ function fadeInAnimate(ft, delay) {
 }
 
 function InitialIntroduction(props) {
-  const stateHandler = props.StateHandler;
   const calibrated = props.calibrated;
   const hidden = props.hidden?"":"hidden"
-  console.log(hidden)
+  const navbar = CalibrationButton(calibrated, "notNavbar")
 
   const line1 = `animate-[welcome_2s_ease-in-out_1]`
   const line2 = `animate-[welcome_2s_ease-in-out_2s_1_both]`
@@ -34,23 +36,22 @@ function InitialIntroduction(props) {
     <h4 className={`${line4} font-bold text-center text-4xl mt-6 mb-2`}>Let's start with some calibration</h4>
     <h4 className={`${line5} text-center italic text-xl`}>click this icon for calibration</h4>
     <div className={line5}>
-      {CalibrationButton(calibrated, stateHandler, "notNavbar")}
+      {navbar}
     </div>
     </div>
   )
 }
 export default function IntroductionModal(props) {
-  const stateHandler = props.StateHandler;
   const [introductionStage, setIntroductionStage] = useState("initial"); //initial,postcalibration
   const calibrated = props.calibrated;
   const open = calibrated ? "" : "modal-open"
+  const isHidden = introductionStage==="initial"
   return (
     <div>
       <div className={`modal flex flex-col backdrop-blur-3xl ${open}`}>
       <InitialIntroduction 
-      StateHandler = {stateHandler} 
       calibrated = {props.calibrated} 
-      hidden={introductionStage==="initial"}></InitialIntroduction>
+      hidden={isHidden}></InitialIntroduction>
       </div>
     </div>
   );

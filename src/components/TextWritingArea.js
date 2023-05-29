@@ -1,10 +1,10 @@
 // Thisreact compoment is top level and will manage the state of the thingy
 import React, { useState } from "react";
-import { EventKeyCodeToJSID } from "../constants";
 import { ExperimentTypeSelector } from "./ExperimentTypeSelector";
 import { OpenSubmitModal } from "./SubmitModal";
-let dummyid = 0
+import { StateHandler } from "../StateHandler";
 
+const stateHandler = new StateHandler()
 
 function Carot() {
     return < a className="flex-none text-4xl animate-pulse">|</a>
@@ -31,7 +31,6 @@ function ActiveWordBlock(word) {
     }
     return <a id="activeWord_0" className="flex-none max-w-fit select-none mx-0 text-3xl whitespace-pre-wrap break-words">{wordToDisplay}</a>
 }
-
 
 function ActiveWordBlock_wordbyword(word, target) {
     word = word
@@ -87,7 +86,6 @@ function WordBlock_wordbyword(word, status){
     }
 }
 
-
 function DumpFileButton(props) {
     const dumpfn = props.dumpfn
     return <button className="btn btn-square btn-ghost mx-auto scale-125" onClick={dumpfn}>
@@ -106,15 +104,13 @@ function RecordingBlip(props) {
 export class TextWritingArea extends React.Component {
     constructor(props) {
         super(props);
-        this.stateHandler = props.StateHandler
+        this.stateHandler = stateHandler
         // this.state = this.stateHandler.getStateObj()
     }
-
 
     getStateUpdateCallback() {
         return (newstate) => (this.setState(newstate))
     }
-
 
     componentDidMount() {
         this.stateHandler.init_listener()
@@ -157,41 +153,34 @@ export class TextWritingArea extends React.Component {
     }
 
     render() {
-        // let wordstring = ""
-        const mystate = this.stateHandler.getStateObj()
-        const recording = this.stateHandler.getRecordingState() == "enabled" ? "Recording..." : ""
-        // const words= [...mystate.words].concat([mystate.activeWord]).map((word) => WordBlock(word))
+        const mystate = stateHandler.getStateObj()
+        const recording = stateHandler.getRecordingState() == "enabled" ? "Recording..." : ""
         
-        let task_object
-        // console.log(mystate)
+        let task_components
         if (mystate.experimentType == "copy"){
             const words = [...mystate.words].map((word) => WordBlock(word))
             const activeWord = ActiveWordBlock(mystate.activeWord)
-            task_object = this.render_copy_task(words,activeWord)
+            task_components = this.render_copy_task(words,activeWord)
         } else if (mystate.experimentType == "wordbyword"){
             const targetWords = mystate.targetWords
             const targetWordIndex = mystate.targetWordIndex
             const activeWord = mystate.activeWord
-            task_object = this.renderWordByWord(targetWords,targetWordIndex, activeWord)
+            task_components = this.renderWordByWord(targetWords,targetWordIndex, activeWord)
         }
-
         return (
-            <div className={`flex flex-col h-100 rounded mx-5 px-2 py-1 ring-2 ring-current max-h-[80vh] min-h-[80vh] ${this.stateHandler.calibrator.calibrationResults === null? "hidden":""}`} onMouseEnter={(e) => { this.stateHandler.setRecordingState("enabled") }} onMouseLeave={(e) => this.stateHandler.setRecordingState("disabled")}>
+            <div className={`flex flex-col h-100 rounded mx-5 px-2 py-1 ring-2 ring-current max-h-[80vh] min-h-[80vh] ${stateHandler.calibrator.calibrationResults === null? "hidden":""}`} onMouseEnter={(e) => { this.stateHandler.setRecordingState("enabled") }} onMouseLeave={(e) => stateHandler.setRecordingState("disabled")}>
                 <div className="flex items-end">
                     <div className="flex-none mx-auto font-bold text-4xl mt-2">Writing Area</div>
                     <div className='flex-none mx-2 text-l text-red-500 animate-pulse'>{recording}</div>
                     <div className="flex-1"></div>
                     <div className="flex-none mt-1">
-                        <ExperimentTypeSelector StateHandler={this.stateHandler}/>
+                        <ExperimentTypeSelector/>
                     </div>
                     <div className="flex-none">
                         <OpenSubmitModal></OpenSubmitModal>
                     </div>
-                    <div className="flex-none hidden">
-                        <DumpFileButton dumpfn={() => this.stateHandler.dumpLogToFile(this.stateHandler.saveFiletoDesktop, "desktop")}></DumpFileButton>
-                    </div>
                 </div>
-                {task_object}
+                {task_components}
             </div>
         );
     }

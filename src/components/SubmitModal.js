@@ -1,17 +1,15 @@
 import React, { useState } from "react";
-// import { DUMMYCSV } from "../dummyData"
-// import { success } from "daisyui/src/colors";
+import { StateHandler } from "../StateHandler";
+const stateHandler = new StateHandler();
 
 export const _SUBMIT_MODAL_ID = "submit-modal-1"
 
-// const SUBMIT_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`;
-const SUBMIT_URL = `localhost`;
+const SUBMIT_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`;
+// const SUBMIT_URL = `localhost`;
 
 
 // const VERIFICATION_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`
 const VERIFICATION_URL = `localhost`
-
-
 
 
 async function put(params, base_64_blob) {
@@ -30,6 +28,7 @@ async function put(params, base_64_blob) {
     });
 
     const textResult = await res.text()
+    console.log(textResult)
     return textResult === "ok"
   } catch (e) {
     console.log(e)
@@ -37,7 +36,8 @@ async function put(params, base_64_blob) {
   }
 }
 
-function submitButtonContent(submitState) {
+function SubmitButtonContent(props) {
+  const submitState = props.submitState
   switch (submitState) {
     case "preSubmit":
       return "submit"
@@ -50,7 +50,7 @@ function submitButtonContent(submitState) {
   }
 }
 
-function buttonSubmitClassName(submitState) {
+function generateButtonSubmitClassName(submitState) {
   const baseClass = `btn flex-1 my-2`
   switch (submitState) {
     case "preSubmit":
@@ -68,30 +68,43 @@ function spinner() {
   return <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
 }
 
-function contingency(submitState, stateHandler) {
-  function handleDownload() {
+function Contingency(props) {
+  const submitState = props.submitState
+  const downloaded = props.downloaded
+  const setDownloaded = props.setDownloaded
 
-    stateHandler.dumpLogToFile(stateHandler.saveFiletoDesktop, "desktop")
+  const downloadCallbackWrapper = (blob,params) => {
+    stateHandler.saveFiletoDesktop(blob,params)
+    setDownloaded(true)
+  }
+
+  const handleDownload = () => {
+    stateHandler.dumpLogToFile(
+      downloadCallbackWrapper,
+      "desktop",
+      stateHandler.experimentType)
   }
 
   const mailto = `mailto:theunikeyproject@gmail.com?&subject=UnikeyProject Data Submission&body=Please attach the downloaded data!`
   const hidden = submitState === "Failed" ? "" : "hidden"
-  return <div className={`transition-all mt-5 ${hidden}`}>
+  
+  return (
+  <div className={`transition-all mt-5 ${hidden}`}>
     <h2 className={`font-bold text-4xl flex-auto `}>Oh no!</h2>
     <h1> It seems like we had trouble collecting your data! 😔</h1>
     <h1> But it's okay, we have a backup plan! Please help us by downloading your data and sending it to <a className="link link-accent font-bold underline" href={mailto}>theunikeyproject@gmail.com</a>.</h1>
     <div className="flex flex-col content-center mb-2">
       <button className={"btn btn-info flex-1 my-2"} onClick={handleDownload}>Download</button>
     </div>
+    <ThankYouMessage hidden={downloaded ? "" : "hidden"} />
   </div>
-
+  )
 }
 
 
 export function OpenSubmitModal(props) {
   return (
     <div>
-
       <label htmlFor={_SUBMIT_MODAL_ID} className="btn btn-ghost p-2">
         <div className="flex items-center">
           <h1 className="text text-center align-middle mr-2">Submit Results</h1>
@@ -105,11 +118,20 @@ export function OpenSubmitModal(props) {
   )
 }
 
+function ThankYouMessage(props) {
+  const thankyouHidden = props.hidden
+  return (
+    <div >
+      <h1 className={`font-bold text-center text-2xl mt-5 ${thankyouHidden}`}>Thank you! That's all from us!</h1>
+      <h1 className={`font-bold italic text-center text-l mt-1 ${thankyouHidden}`}> You may now close this tab</h1>
+    </div>
+  )
+}
 
-export default function SubmitModal(props) {
-  const stateHandler = props.StateHandler
+
+export default function SubmitModal() {
   const [submitState, setSubmit] = useState("preSubmit");
-  // useEffect(()=>{console.log(submitState)})
+  const [downloaded, setDownloaded] = useState(false);
 
   async function uploadResults(base_64_blob, params) {
     const put_res = await put(params, base_64_blob);
@@ -123,18 +145,20 @@ export default function SubmitModal(props) {
   function handleSubmit(e) {
     if (submitState === "preSubmit") {
       setSubmit("inProgress")
-      stateHandler.dumpLogToFile(uploadResults)
+      stateHandler.dumpLogToFile(
+        uploadResults,
+        "notdesktop",
+        stateHandler.experimentType)
     } else {
       return
     }
   }
 
 
-  const buttonSubmitContent = submitButtonContent(submitState)
-
   const thankyouHidden = submitState === "Passed" ? "" : "hidden"
   const buttonExitDisabled = submitState === "preSubmit" ? "" : "btn-disabled"
   const buttonExitClassName = `btn btn-sm btn-circle absolute right-2 top-2 ${buttonExitDisabled}`
+  const buttonSubmitClassName = generateButtonSubmitClassName(submitState)
 
   return (
     <div>
@@ -148,12 +172,11 @@ export default function SubmitModal(props) {
           <div className="flex flex-col content-center mb-2">
             <h1>Thank you for your participation! We hope you've had a great time.</h1>
             <h1>Please submit your data by hitting the submit button below</h1>
-            <button className={buttonSubmitClassName(submitState)} onClick={handleSubmit}>{buttonSubmitContent}</button>
-            {contingency(submitState, stateHandler)}
-            <div >
-              <h1 className={`font-bold text-center text-2xl mt-5 ${thankyouHidden}`}>Thank you! That's all from us!</h1>
-              <h1 className={`font-bold italic text-center text-l mt-1 ${thankyouHidden}`}> You may now close this tab</h1>
-            </div>
+            <button className={buttonSubmitClassName} onClick={handleSubmit}>
+              <SubmitButtonContent submitState={submitState} />
+            </button>
+            <Contingency submitState ={submitState} downloaded={downloaded} setDownloaded={setDownloaded}/>
+            <ThankYouMessage hidden={thankyouHidden}/>
           </div>
         </div>
       </div>

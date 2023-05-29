@@ -3,13 +3,15 @@ import { KEYUP_EVENT, KEYDOWN_EVENT, EventKeyCodeToJSID } from './constants';
 import { saveAs } from 'file-saver';
 import JSZip from "jszip";
 import UAParser from "ua-parser-js";
-
 import { DUMMYCSV, DUMMYLIST } from "./dummyData"
-
 
 const MIN_TIME_BETWEEN_KEYPRESS_MS = 200
 const CALBIRATION_KEY_REQUIRED_NUMBER = 100
 const TIMEPAUSEBETWEENSTAGES_MS = 1000
+const DUMMY_WORDLIST = DUMMYLIST
+
+
+
 
 export class Calibrator {
     constructor(uiUpdateFn) {
@@ -218,10 +220,21 @@ export class Calibrator {
 
 }
 
-
-const DUMMY_WORDLIST = DUMMYLIST
 export class StateHandler {
+    // Class Level Constants
+    CALBIRATION_KEY_REQUIRED_NUMBER = CALBIRATION_KEY_REQUIRED_NUMBER
+
+    // Singleton
+    static _instance = new this();
+    
     constructor() {
+        // enforce singleton
+        if (StateHandler._instance) {
+            return this.constructor._instance
+        }
+
+        
+        console.log("Performing StateManager Setup!")
         // Lifecycle
         this.isStarted = false;
 
@@ -246,62 +259,13 @@ export class StateHandler {
         this.experimentType = 'copy'
         this.UICallbacks = new Map();
 
-        this.CALBIRATION_KEY_REQUIRED_NUMBER = CALBIRATION_KEY_REQUIRED_NUMBER
         this.calibrator = new Calibrator(this.updateUI_args.bind(this))
 
     }
 
-    init_word_by_word(targetWords) {
-        for (let i = 0; i < targetWords.length; i++) {
-            this.wordRecordCounts.set(targetWords[i][0], 0)
-            this.wordRecordData.set(targetWords[i][0], new Array())
-        }
-    }
-
-    generateTargetWords(initialList, additions){
-        let intermediate = []
-        for(let i = 0; i < additions.length; i++){
-            intermediate.push([additions[i],"pending"])
-        }
-        return initialList.concat(intermediate)
-    }
-
-    getStateObj() {
-        const expType = this.experimentType
-        if (expType === "copy") {
-            return this.getStateObj_copy()
-        } else if (expType === "wordbyword") {
-            return this.getStateObj_wordByWord()
-        }
-    }
-
-    getStateObj_copy() {
-        const curr = (this.activeWord == null) ? "" : this.activeWord
-        const state = {
-            activeWord: curr,
-            words: this.words,
-            experimentType: this.experimentType
-        }
-        return state
-    }
-
-    getStateObj_wordByWord() {
-        const curr = (this.activeWord == null) ? "" : this.activeWord
-        const state = {
-            activeWord: curr,
-            targetWords: this.targetWords,
-            targetWordIndex: this.targetWordIndex,
-            experimentType : this.experimentType
-        }
-        return state
-    }
-
-    updateExperimentType(type) {
-        // console.log(`update ${type}`)
-        this.experimentType = type
-        console.log(`Set Experiment Type to: ${this.experimentType}`)
-        this.updateUITextBox()
-    }
+    // ***************** 
+    // LifeCycle Methods
+    // ***************** 
 
     init_listener() {
         if (this.isStarted == false) {
@@ -346,15 +310,6 @@ export class StateHandler {
     getRecordingState() { return this.recordingstate }
 
 
-    is_last_letter_whitespace(word) {
-        if (word == "")
-            return false
-        else {
-            const lastLetter = [...word].pop()
-            return lastLetter == "\n" || lastLetter == " " || lastLetter == "   "
-        }
-    }
-
     registerCallback(callbackID, callback) {
         this.UICallbacks.set(callbackID, callback)
     }
@@ -389,6 +344,38 @@ export class StateHandler {
         // console.log(this.words)
         // console.log(this.keylog)
     }
+
+
+
+    // *****************
+    // Generic State Management / Acccess Methods + Utility Methods
+    // *****************
+
+    getStateObj() {
+        const expType = this.experimentType
+        if (expType === "copy") {
+            return this.getStateObj_copy()
+        } else if (expType === "wordbyword") {
+            return this.getStateObj_wordByWord()
+        }
+    }
+
+    updateExperimentType(type) {
+        // console.log(`update ${type}`)
+        this.experimentType = type
+        console.log(`Set Experiment Type to: ${this.experimentType}`)
+        this.updateUITextBox()
+    }
+
+    is_last_letter_whitespace(word) {
+        if (word == "")
+            return false
+        else {
+            const lastLetter = [...word].pop()
+            return lastLetter == "\n" || lastLetter == " " || lastLetter == "   "
+        }
+    }
+
 
 
     // *********************
@@ -493,7 +480,6 @@ export class StateHandler {
         }
     }
 
-
     handle_initialWordCaseWordByWord(kpType, keyCode, key, timeStamp) {
         if (kpType == KEYDOWN_EVENT) {
             if (is_char(keyCode)) {
@@ -567,12 +553,36 @@ export class StateHandler {
         }
     }
 
+    init_word_by_word(targetWords) {
+        for (let i = 0; i < targetWords.length; i++) {
+            this.wordRecordCounts.set(targetWords[i][0], 0)
+            this.wordRecordData.set(targetWords[i][0], new Array())
+        }
+    }
 
+    generateTargetWords(initialList, additions){
+        let intermediate = []
+        for(let i = 0; i < additions.length; i++){
+            intermediate.push([additions[i],"pending"])
+        }
+        return initialList.concat(intermediate)
+    }
 
+    getStateObj_wordByWord() {
+        const curr = (this.activeWord == null) ? "" : this.activeWord
+        const state = {
+            activeWord: curr,
+            targetWords: this.targetWords,
+            targetWordIndex: this.targetWordIndex,
+            experimentType : this.experimentType
+        }
+        return state
+    }
+
+    
     // ***************
     // ---COPY TASK---
     // ***************
-
 
     handleExperimentRecordingCopyTask(kpType, keyCode, key, timeStamp) {
         // Handling Initial word
@@ -654,6 +664,17 @@ export class StateHandler {
         }
     }
 
+    getStateObj_copy() {
+        const curr = (this.activeWord == null) ? "" : this.activeWord
+        const state = {
+            activeWord: curr,
+            words: this.words,
+            experimentType: this.experimentType
+        }
+        return state
+    }
+
+
 
     // *****************
     // ---Calibration---
@@ -668,50 +689,93 @@ export class StateHandler {
         return r
     }
 
-
     endCalibrationRecording() {
-
     }
 
-    dumpHelper(code) {
-        switch (code) {
-            case "Backspace":
-                return 8
-            default:
-                return code.charCodeAt()
-        }
-    }
+
+    // ******************
+    // STATE SAVING UTILS
+    // ******************
 
     saveFiletoDesktop(blob, params) {
         saveAs(blob, `unikey_${params["pid"]}_${params["expType"]}_${params["timestamp_now"]}.zip`);
     }
 
+    dumpHelper(code) {
+        return  code === "Backspace" ? 8 : code.charCodeAt()
+    }
 
-    dumpLogToFile(callback, target) {
+    logToString(){
         let baseString = ""
         this.keylog.forEach(entry => {
             // [kpType,keyCode,key,timeStamp]
             const addString = `${entry[0]},${entry[1]},${this.dumpHelper(entry[2])},${entry[3]}\n`
             baseString += addString
         });
+        return baseString
+    }
+
+    serialiseExperimentData(taskType){
+        if (taskType == "copy"){
+            return {}
+        } else if (taskType === "wordbyword"){
+            console.log(this.wordRecordData)
+            const wordByWordData = JSON.stringify(Object.fromEntries(this.wordRecordData) )
+            const wordRecordCounts = JSON.stringify(Object.fromEntries(this.wordRecordCounts))
+            return {
+                "wordData.json": wordByWordData,
+                "wordCounts.json": wordRecordCounts
+            }
+        } else {
+            throw new Error("Invalid Task Type")
+        }
+    }
+
+
+    dumpLogToFile(callback, target, taskType) {
+
+        console.log(`Saving File for ${taskType} Task | ${target} target`)
+
+        // setup
         const zipper = new JSZip()
         const parsy = new UAParser()
-        const hwinfo = parsy.getResult()
-        // console.log(hwinfo)
-        const myblob = new Blob([baseString], { type: "text/plain;charset=utf-8" });
-        zipper.file("data.csv", myblob)
-        zipper.file("config.json", JSON.stringify(this.calibrator.calibrationResults))
-        zipper.file("hardware.json", JSON.stringify(hwinfo))
 
-        const params = {
-            "pid": this.calibrator.calibrationResults["ParticipantId"],
-            "expType": this.experimentType,
-            "timestamp_now": Date.now()
+        // Config and calibration Data
+        const hwinfo = parsy.getResult()
+        const calibrationData = this.calibrator.calibrationResults
+
+        // Experiment Data
+        const experimentLog = this.logToString(taskType)
+        const experimentSpecificData = this.serialiseExperimentData(taskType)
+        console.log(experimentSpecificData)
+        
+        // serialising and compression
+        const myblob = new Blob([experimentLog], { type: "text/plain;charset=utf-8" });
+        zipper.file("data.csv", myblob)
+        zipper.file("config.json", JSON.stringify(calibrationData))
+        zipper.file("hardware.json", JSON.stringify(hwinfo))
+        
+        for (const d in experimentSpecificData){
+            console.log(d)
+            zipper.file(d,experimentSpecificData[d])
         }
+
+
+        // Labelling and Naming
+        const particpantID = this.calibrator.calibrationResults["ParticipantId"]
+        const experimentType = this.experimentType
+        const timestamp_now = Date.now()
+        const params = {
+            "pid": particpantID,
+            "expType": experimentType,
+            "timestamp_now": timestamp_now
+        }
+
+        // processing for save Target
         if (target == "desktop") {
             zipper.generateAsync({ type: "blob" })
-                .then((blob) => {
-                    callback(blob, params)
+                .then((result) => {
+                    callback(result, params)
                 });
         } else {
             zipper.generateAsync({
@@ -721,13 +785,12 @@ export class StateHandler {
                     level: 9
                 }
             })
-                .then((blob) => {
-                    callback(blob, params)
+                .then((result) => {
+                    callback(result, params)
                 });
         }
 
     }
-
-
-
 }
+
+// const GLOBAL_STATE_HANDLER_HANDLE = new StateHandler()

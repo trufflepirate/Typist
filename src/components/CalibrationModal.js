@@ -1,14 +1,17 @@
 import React, { useState } from "react";
 
+import { StateHandler } from "../StateHandler";
+const stateHandler = new StateHandler()
+
 export const _CALIBRATION_MODAL_ID = "calibration-modal-1";
 
-
-
-export function CalibrationButton(calibrated, stateHandler, target = "navbar") {
-  const scaling = target==="navbar"? "":"w-40 h-40"
-  const margins = target==="navbar"? "w-6 h-6":"m-3"
-  const ghost = target==="navbar"? "btn-square btn-ghost":"btn-square btn-ghost"
-  const justify =  target==="navbar"? "flex-none":"flex justify-center"
+export function CalibrationButton(props) {
+  const calibrated = props.calibrated
+  const target = props.target;
+  const scaling = target === "navbar" ? "" : "w-40 h-40"
+  const margins = target === "navbar" ? "w-6 h-6" : "m-3"
+  const ghost = target === "navbar" ? "btn-square btn-ghost" : "btn-square btn-ghost"
+  const justify = target === "navbar" ? "flex-none" : "flex justify-center"
   const calibrationButtonUI = calibrated ? `btn ${ghost} ${scaling} stroke-green-400` : `btn ${ghost} ${scaling} stroke-red-400 animate-pulse`
   return <div className={justify}>
     <label htmlFor={_CALIBRATION_MODAL_ID} className={calibrationButtonUI} onClick={stateHandler.get_initCalibrationRecording()}>
@@ -64,31 +67,30 @@ function ParticipantDetails(props) {
 
 
 
-export function CalibrationModal(props) {
-  const stateHandler = props.StateHandler;
+export function CalibrationModal() {
   const [calibrationPercent, setPercent] = useState(0);
   const [stage, setStage] = useState("disabled");
 
-  const initial_inputState = {ParticipantId:"", KeyboardModel:""}
+  const initial_inputState = { ParticipantId: "", KeyboardModel: "" }
   const [pInput, setpInput] = useState(initial_inputState);
-  const inputCallbacks ={
+  const inputCallbacks = {
     idCallback: (e) => {
       stateHandler.calibrator.calibrationResults["ParticipantId"] = e.target.value;
-      const new_state = {...pInput,...{ParticipantId:e.target.value,}}
+      const new_state = { ...pInput, ...{ ParticipantId: e.target.value, } }
       setpInput(new_state);
       // console.log(pInput === initial_inputState)
     },
     keyboardCallback: (e) => {
       // console.log(e)
       stateHandler.calibrator.calibrationResults["KeyboardModel"] = e.target.value;
-      const new_state = {...pInput,...{KeyboardModel:e.target.value,}}
+      const new_state = { ...pInput, ...{ KeyboardModel: e.target.value, } }
       setpInput(new_state);
       // console.log(pInput == initial_inputState)
     },
   }
-  const are_user_inputs_filled = (inputs)=>{
+  const are_user_inputs_filled = (inputs) => {
     for (const [key, value] of Object.entries(inputs)) {
-      if (value.length==0){return false}
+      if (value.length == 0) { return false }
     }
     return true
   }
@@ -129,7 +131,6 @@ export function CalibrationModal(props) {
         return { "percent": 100, "css": "opacity-25" };
     }
   };
-
   const stageReviewHelper = () => {
     switch (stage) {
       case "disabled":
@@ -146,7 +147,6 @@ export function CalibrationModal(props) {
   const stage2state = stage2Helper();
   const stage3state = stage3Helper();
   const stageReviewState = stageReviewHelper();
-
 
   stateHandler.registerCallback("CalibrationUIProgressBar", setPercent);
   stateHandler.registerCallback("CalibrationUIStage", setStage);
@@ -168,12 +168,12 @@ export function CalibrationModal(props) {
           <span className="flex content-center">
             <h3 className="font-bold text-4xl flex-auto">Calibration!</h3>
             <div>
-            <button className="btn h-fit min-h-fit px-0" onClick={callbackForClearConfig}>
-              <a className= "text-s px-2">Reset</a> 
-              <svg className="inline-block w-6 h-6 stroke-current my-1 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
-              </svg>
-            </button>
+              <button className="btn h-fit min-h-fit px-0" onClick={callbackForClearConfig}>
+                <a className="text-s px-2">Reset</a>
+                <svg className="inline-block w-6 h-6 stroke-current my-1 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
+                </svg>
+              </button>
             </div>
           </span>
           <div className={`transition-all ${stage1state["css"]}`}>
