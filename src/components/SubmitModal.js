@@ -1,40 +1,10 @@
 import React, { useState } from "react";
 import { StateHandler } from "../StateHandler";
+import { PUT_submitExperiment } from "../endpointRequests"
+
 const stateHandler = new StateHandler();
 
 export const _SUBMIT_MODAL_ID = "submit-modal-1"
-
-// const SUBMIT_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`;
-const SUBMIT_URL = `localhost`;
-
-
-// const VERIFICATION_URL = `https://script.google.com/macros/s/AKfycbzh53bDCNk8WW3i7DEq0OoaX0NmpJkqDCgPKUhA4gQhRQbYVapMx21ymw3YNB-Pe8Y/exec`
-const VERIFICATION_URL = `localhost`
-
-
-async function put(params, base_64_blob) {
-  const fname = `unikey_${params["pid"]}_${params["expType"]}_${params["timestamp_now"]}.zip`
-  try {
-    const res = await fetch(SUBMIT_URL, {
-      redirect: 'follow',
-      method: "POST",
-      body: JSON.stringify({
-        pid: fname,
-        d: base_64_blob,
-      }),
-      headers: {
-        "Content-Type": "text/plain",
-      },
-    });
-
-    const textResult = await res.text()
-    console.log(textResult)
-    return textResult === "ok"
-  } catch (e) {
-    console.log(e)
-    return false
-  }
-}
 
 function SubmitButtonContent(props) {
   const submitState = props.submitState
@@ -134,7 +104,7 @@ export default function SubmitModal() {
   const [downloaded, setDownloaded] = useState(false);
 
   async function uploadResults(base_64_blob, params) {
-    const put_res = await put(params, base_64_blob);
+    const put_res = await PUT_submitExperiment(params, base_64_blob);
     if (!put_res) {
       setSubmit("Failed")
     } else {

@@ -763,6 +763,7 @@ export class StateHandler {
 
         // Labelling and Naming
         const particpantID = this.calibrator.calibrationResults["ParticipantId"]
+        const email = this.calibrator.calibrationResults["Email"]
         const experimentType = this.experimentType
         const timestamp_now = Date.now()
         const params = {

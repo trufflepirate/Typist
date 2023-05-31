@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 
 import { StateHandler } from "../StateHandler";
+import {PUT_verifyEmail} from "../endpointRequests";
+
+
 const stateHandler = new StateHandler()
 
 export const _CALIBRATION_MODAL_ID = "calibration-modal-1";
@@ -43,7 +46,9 @@ function ProgressBarUI(props) {
 function ParticipantDetails(props) {
   const pInput = props.pInput
   const callbacks = props.inputCallbacks
-  const isDisabled = props.inputState ? false:true;
+  const isDisabledDueToReady = props.inputState ? false:true;
+  const isDisabledDueToVerification = props.verificationState == "inprogress";
+  const isDisabled = isDisabledDueToReady || isDisabledDueToVerification;
 
   const pID = pInput.ParticipantId === ""? "Type here":pInput.ParticipantId
   const kID = pInput.KeyboardModel === ""? "Type here":pInput.KeyboardModel
@@ -64,7 +69,42 @@ function ParticipantDetails(props) {
   );
 }
 
+function CloseModalButton(props){
+  const verificationState = props.verificationState
+  const setVerification = props.setVerification
 
+  const callbackForModalClose = props.callback
+  const done_css = props.done_css
+  
+
+  async function verifyOnClick() {
+    if (verificationState === "idle" ){
+      setVerification("inprogress")
+      // const verificationResult = await PUT_verifyEmail({"email":"rootfourtytwo@gmail.com","pid":"sean"})
+      const verificationResult = 1
+
+      if (verificationResult==null) {
+        console.log("verificationFailed")
+      }
+      setVerification("idle")
+      
+      callbackForModalClose()
+      document.getElementById(_CALIBRATION_MODAL_ID).checked = false;
+    } else if (verificationState === "inprogress") {
+      console.log("ignoring")
+    }
+    return 
+  } 
+
+  // const verifyButton
+  return (
+    <div className="modal-action justify-center">
+      <label className={done_css} onClick={verifyOnClick}>
+        {`${verificationState}`}
+        </label>
+    </div>
+  )
+}
 
 
 export function CalibrationModal() {
@@ -72,7 +112,9 @@ export function CalibrationModal() {
   const [stage, setStage] = useState("disabled");
 
   const initial_inputState = { ParticipantId: "", KeyboardModel: "" }
+  const [verificationState, setVerification] = useState("idle");
   const [pInput, setpInput] = useState(initial_inputState);
+
   const inputCallbacks = {
     idCallback: (e) => {
       stateHandler.calibrator.calibrationResults["ParticipantId"] = e.target.value;
@@ -160,6 +202,7 @@ export function CalibrationModal() {
     stateHandler.calibrator.clearSavedCalibration();
   };
 
+
   return (
     <div>
       <input type="checkbox" id={_CALIBRATION_MODAL_ID} className="modal-toggle" />
@@ -189,11 +232,9 @@ export function CalibrationModal() {
             <ProgressBarUI calibrationPercent={stage3state["percent"]} maxCalib={stateHandler.CALBIRATION_KEY_REQUIRED_NUMBER} />
           </div>
           <div className={`transition-all ${stageReviewState["css"]}`}>
-            <ParticipantDetails inputCallbacks={inputCallbacks} inputState={inputState} pInput={pInput}></ParticipantDetails>
+            <ParticipantDetails inputCallbacks={inputCallbacks} inputState={inputState} pInput={pInput} verificationState = {verificationState}></ParticipantDetails>
           </div>
-          <div className="modal-action justify-center">
-            <label htmlFor={_CALIBRATION_MODAL_ID} className={done_css} onClick={callbackForModalClose}>Done!</label>
-          </div>
+          <CloseModalButton callback={callbackForModalClose} done_css={ done_css} verificationState={verificationState} setVerification = {setVerification}/>
         </div>
       </div>
     </div>
