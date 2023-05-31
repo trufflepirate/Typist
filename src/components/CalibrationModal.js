@@ -80,10 +80,11 @@ function CloseModalButton(props){
   async function verifyOnClick() {
     if (verificationState === "idle" ){
       setVerification("inprogress")
-      // const verificationResult = await PUT_verifyEmail({"email":"rootfourtytwo@gmail.com","pid":"sean"})
-      const verificationResult = 1
+      const verificationResult = await PUT_verifyEmail({"email":"rootfourtytwo@gmail.com","pid":"sean"})
+      console.log(verificationResult)
+      const verificationResult2 = 1
 
-      if (verificationResult==null) {
+      if (verificationResult2==null) {
         console.log("verificationFailed")
       }
       setVerification("idle")
