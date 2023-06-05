@@ -50,14 +50,14 @@ function ParticipantDetails(props) {
   const isDisabledDueToVerification = props.verificationState == "inprogress";
   const isDisabled = isDisabledDueToReady || isDisabledDueToVerification;
 
-  const pID = pInput.ParticipantId === ""? "Type here":pInput.ParticipantId
+  const pID = pInput.ParticipantEmail === ""? "Type here":pInput.ParticipantEmail
   const kID = pInput.KeyboardModel === ""? "Type here":pInput.KeyboardModel
 
   return (
     <div>
       <div className="form-control w-full">
         <label className="input-group input-group-vertical mt-5">
-          <span >Participant ID</span>
+          <span >Participant Email</span>
           <input type="text" placeholder={pID} className={"input input-bordered"} onChange={callbacks.idCallback} disabled={isDisabled} />
         </label>
         <label className="input-group input-group-vertical mt-5">
@@ -69,57 +69,94 @@ function ParticipantDetails(props) {
   );
 }
 
-function CloseModalButton(props){
-  const verificationState = props.verificationState
-  const setVerification = props.setVerification
+function spinner() {
+  return <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
+}
 
+
+function CloseModalButton(props){
+  const verificationState = props.verificationState["state"]
+  const setVerification = props.setVerification
   const callbackForModalClose = props.callback
   const done_css = props.done_css
-  
 
   async function verifyOnClick() {
-    if (verificationState === "idle" ){
-      setVerification("inprogress")
-      const verificationResult = await PUT_verifyEmail({"email":"rootfourtytwo@gmail.com","pid":"sean"})
-      console.log(verificationResult)
-      const verificationResult2 = 1
+    const calibrator = stateHandler.calibrator
 
-      if (verificationResult2==null) {
-        console.log("verificationFailed")
+    if (verificationState === "idle" || verificationState === "failed"){
+      const participantEmail = calibrator.calibrationResults["ParticipantEmail"]
+      const particpantData = {
+        "pid" : calibrator.url_target,
+        "email" : participantEmail.toLowerCase()
       }
-      setVerification("idle")
+      setVerification({"state": "inprogress"})
+      const verificationResult = await PUT_verifyEmail(particpantData)
+      const resultStatus = verificationResult["status"]
+      // pass case
+      if (resultStatus === 'found' || resultStatus === 'enrolled') {
+        const correct_urlTarget = verificationResult["userFriendlyID"] == calibrator.url_target
+        if (!correct_urlTarget) {
+          calibrator.changeTarget(verificationResult["userFriendlyID"]) 
+          // window.history.replaceState({}, "", `?pid=${verificationResult["userFriendlyID"]}`)
+        }
+        calibrator.calibrationResults["ParticipantId"] = verificationResult["userFriendlyID"]
+        callbackForModalClose()
+        setVerification({"state": "idle"})
+        document.getElementById(_CALIBRATION_MODAL_ID).checked = false;
+      } else {
+        // fail case
+        const reason = verificationResult["reason"]
+        setVerification({"state": "failed","reason":reason})
+      }
       
-      callbackForModalClose()
-      document.getElementById(_CALIBRATION_MODAL_ID).checked = false;
-    } else if (verificationState === "inprogress") {
+    } else if (verificationState === "inprogress"){
       console.log("ignoring")
     }
     return 
-  } 
+  }
 
-  // const verifyButton
+  const buttonVerifyOpacity = verificationState === "inprogress"? "opacity-0":"opacity-100"
+  const buttonSpinnerOpacity = verificationState === "inprogress"? "opacity-100":"opacity-0"
+
+  const failtipOpen = verificationState === "failed"? "tooltip tooltip-open tooltip-error":""
+  let reason = ""
+  if (props.verificationState.reason !== null) {
+    const r = props.verificationState.reason
+    if (r == "Failed To Find User" || r == "userAlreadyAdded"){
+      reason = "Verification failed: Check Email then verify again!"
+    }
+  }
+  const reasonText = props.verificationState.reason !== null ? `${reason}`:  ""
+
   return (
     <div className="modal-action justify-center">
-      <label className={done_css} onClick={verifyOnClick}>
-        {`${verificationState}`}
+      <div className={`${failtipOpen}`} data-tip={reasonText}>
+        <label className={done_css} onClick={verifyOnClick}>
+          <div className="relative">
+            <a className={`${buttonVerifyOpacity}`}>Verify!</a>
+            <div className={`absolute inset-0 ${buttonSpinnerOpacity}`}>{spinner()} </div>
+          </div>
         </label>
+      </div>
     </div>
   )
 }
+
+
 
 
 export function CalibrationModal() {
   const [calibrationPercent, setPercent] = useState(0);
   const [stage, setStage] = useState("disabled");
 
-  const initial_inputState = { ParticipantId: "", KeyboardModel: "" }
-  const [verificationState, setVerification] = useState("idle");
+  const initial_inputState = { ParticipantEmail: "", KeyboardModel: "" }
+  const [verificationState, setVerification] = useState({"state":"idle", "reason":null});
   const [pInput, setpInput] = useState(initial_inputState);
 
   const inputCallbacks = {
     idCallback: (e) => {
-      stateHandler.calibrator.calibrationResults["ParticipantId"] = e.target.value;
-      const new_state = { ...pInput, ...{ ParticipantId: e.target.value, } }
+      stateHandler.calibrator.calibrationResults["ParticipantEmail"] = e.target.value;
+      const new_state = { ...pInput, ...{ ParticipantEmail: e.target.value, } }
       setpInput(new_state);
       // console.log(pInput === initial_inputState)
     },
@@ -138,7 +175,8 @@ export function CalibrationModal() {
     return true
   }
 
-  const done_css = (!(stage === "stage_review") || (!are_user_inputs_filled(pInput))) ? "btn btn-disabled scale-150" : "btn scale-150";
+  const done_disabled = (!(stage === "stage_review") || (!are_user_inputs_filled(pInput))) ? "btn-disabled" : "";
+  const done_css =  `btn ${done_disabled} text-2xl`;
   const inputState = (stage === "stage_review");
 
   const stage1Helper = () => {
@@ -196,6 +234,12 @@ export function CalibrationModal() {
   stateHandler.registerCallback("CalibrationUIParticipantDetails", setpInput);
 
   const callbackForModalClose = () => {
+    // trimResults
+    const pid = stateHandler.calibrator.calibrationResults["ParticipantEmail"]
+    const kbd = stateHandler.calibrator.calibrationResults["KeyboardModel"]
+    stateHandler.calibrator.calibrationResults["ParticipantEmail"] = pid.trim()
+    stateHandler.calibrator.calibrationResults["KeyboardModel"] = kbd.trim()
+
     stateHandler.calibrator.saveCalibration();
     stateHandler.updateUITextBox();
   };
@@ -235,7 +279,7 @@ export function CalibrationModal() {
           <div className={`transition-all ${stageReviewState["css"]}`}>
             <ParticipantDetails inputCallbacks={inputCallbacks} inputState={inputState} pInput={pInput} verificationState = {verificationState}></ParticipantDetails>
           </div>
-          <CloseModalButton callback={callbackForModalClose} done_css={ done_css} verificationState={verificationState} setVerification = {setVerification}/>
+          <CloseModalButton callback={callbackForModalClose} done_css={ done_css} verificationState={verificationState} setVerification = {setVerification} />
         </div>
       </div>
     </div>

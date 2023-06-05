@@ -3,8 +3,10 @@ import React, { useState } from "react";
 import { ExperimentTypeSelector } from "./ExperimentTypeSelector";
 import { OpenSubmitModal } from "./SubmitModal";
 import { StateHandler } from "../StateHandler";
+import ButtonWithLoadingSpinner from "./ButtonWithLoadingSpinner";
 
 const stateHandler = new StateHandler()
+const formatter = Intl.NumberFormat('en', { notation: 'compact' ,maximumSignificantDigits : 4})
 
 function Carot() {
     return < a className="flex-none text-4xl animate-pulse">|</a>
@@ -100,6 +102,141 @@ function RecordingBlip(props) {
     return
 }
 
+// function OverlayComponent(props) {
+//     const { component1, component2 } = props
+//     return (
+//         <div className="relative">
+//             {component1}
+//             <div className="absolute inset-0">{component2}</div>
+//         </div>
+//     )
+// }
+
+
+
+function TotalCompletionBlock(props) {
+    const completedAMt = ((stateHandler.wordbywordStats.correct + stateHandler.previousTotal)*100/stateHandler.neededWordCount).toFixed(2)
+    const val = `${completedAMt}%`
+    const st = { "--value": `${completedAMt}`, "--size": "8rem", "--thickness": "0.75rem" }
+    return (
+        <div className="flex-none flex flex-col justify-center items-center mx-auto">
+            <a className="text-2xl font-bold mb-2">Total Progress</a>
+            <div className="radial-progress text-2xl font-bold" style={st}>
+                <a className="translate-x-1">{val}</a>
+                </div>
+        </div>
+    )
+}
+
+function LoadWordsButton(props) {
+    const toolTipClass = "";
+    const toolTipText = "";
+    let buttonContent = null
+
+    const isLoading = stateHandler.loadingWords;
+    const notEnoughCompleted = stateHandler.targetWords.length>stateHandler.targetWordIndex && stateHandler.targetWords.length!=0;
+    const pulsing = !notEnoughCompleted && !isLoading ? "animate-pulse" : ""
+    const buttonDisabled = notEnoughCompleted? "btn-disabled" : ""
+    const buttonCss = `btn btn-ghost outline outline-1 ${buttonDisabled} ${pulsing}`;
+    const buttonCallback = stateHandler.requestForWords.bind(stateHandler);
+    if (props.isInitial) {
+        buttonContent = <div className="mx-2 text-3xl">{"Load Words!"}</div>;
+        const props = {
+            toolTipClass: toolTipClass,
+            toolTipText: toolTipText,
+            buttonCss: buttonCss,
+            buttonCallback: buttonCallback,
+            buttonText: buttonContent,
+            isLoading: isLoading,
+        }
+        const returnButton  = <ButtonWithLoadingSpinner {...props}></ButtonWithLoadingSpinner>
+        return returnButton
+    } else {
+        buttonContent = <div className="my-2 text-l">{"Load More Words!"}</div>;
+        const props = {
+            toolTipClass: toolTipClass,
+            toolTipText: toolTipText,
+            buttonCss: buttonCss,
+            buttonCallback: buttonCallback,
+            buttonText: buttonContent,
+            isLoading: isLoading,
+        }
+        const returnButton  = <ButtonWithLoadingSpinner {...props}></ButtonWithLoadingSpinner>
+        return returnButton
+    }
+}
+
+function LoadMoreWordsBlock(props){
+    const wordCount = stateHandler.targetWords? stateHandler.targetWords.length : 0
+    return (
+        <div className="flex flex-col justify-center items-center mx-2">
+            <a className="text-xl font-bold mb-1">Words Loaded:</a>
+            <div className="stat-value mb-2">{formatter.format(wordCount)}</div>
+            <div className="stat-action"><LoadWordsButton /></div>
+        </div>
+    )
+}
+
+function LoadMoreWordsInitialBlock(props){
+    return (
+        <div className="container flex-1 max-w-full flex flex-col">
+
+            <a className = "flex-1"></a>
+            <div className = "flex-0 flex justify-center">
+                <LoadWordsButton isInitial={true} />
+            </div>
+            <a className = "flex-1"></a>
+            
+        </div>
+    )
+}
+
+
+function WbwStat(props) {
+    return (
+        <div className="stat p-1">
+            <div className={`stat-title font-bold ${props.color}`}>{props.title}</div>
+            <div className="stat-value m-0">{props.stat}</div>
+            <div className={`stat-desc`}>{props.desc}</div>
+        </div>
+    )
+}
+
+function WbwStatsBlock(props) {
+    const wordbywordStats = stateHandler.wordbywordStats
+
+    const correctWords = wordbywordStats.correct
+    const correctWordsDesc ="Error Free Smooth Typing"
+
+    const wrongWords = wordbywordStats.wrong
+    const wrongWordsDesc ="Wrong Chracters | Long Pauses"
+    return (
+        <div className="flex flex-row">
+            <div className="flex-1 rotate-180 text-gray-500 text-center" style={{writingMode: 'vertical-rl'}}>
+            ↓ This Session Only↓
+            </div>
+            <div className="flex-1 flex flex-col justify-between mx-2">
+                <WbwStat title="Correct Words" color="text-green-500" stat={correctWords} desc={correctWordsDesc} />
+                <WbwStat title="Error Words" color="text-amber-500" stat={wrongWords} desc={wrongWordsDesc} />
+            </div>
+        </div>
+
+    )
+}
+
+function wbwInfoArea(props){
+    const classname = `flex flex-col h-100 rounded my-2 mx-5 px-2 py-1 ring-2 ring-current`
+    let sizes = `max-h-[25vh] min-h-[25vh]`
+    return (
+        <div className={`${classname} ${sizes}`}>
+            <div className="flex flex-row justify-center">
+                <LoadMoreWordsBlock/>
+                <TotalCompletionBlock />
+                <WbwStatsBlock />
+            </div>
+        </div>
+    )
+}
 
 export class TextWritingArea extends React.Component {
     constructor(props) {
@@ -131,9 +268,9 @@ export class TextWritingArea extends React.Component {
         )
     }
 
-    renderWordByWord(targetWords,targetWordIndex, activeWord){
+    renderWordByWord(targetWords,targetWordIndex,activeWord, startidx){
         let res = new Array(targetWords.length)
-        for (let i = 0; i < targetWords.length; i++) {
+        for (let i = startidx; i < targetWords.length; i++) {
             if (i == targetWordIndex) {
                 res.push(ActiveWordBlock_wordbyword(activeWord,targetWords[i][0]))
             } else if  (i<targetWordIndex) {
@@ -155,8 +292,16 @@ export class TextWritingArea extends React.Component {
     render() {
         const mystate = stateHandler.getStateObj()
         const recording = stateHandler.getRecordingState() == "enabled" ? "Recording..." : ""
+        const classname = `flex flex-col h-100 rounded mx-5 px-2 py-1 ring-2 ring-current`
+        let sizes = `max-h-[80vh] min-h-[80vh]`
+        const isHidden = stateHandler.calibrator.calibrationResults === null? "hidden":""
         
+        const mouse_enter = (e) => { this.stateHandler.setRecordingState("enabled") }
+        const mouse_leave = (e) => { this.stateHandler.setRecordingState("disabled") }
+
+
         let task_components
+        let renderedwbwInfoArea
         if (mystate.experimentType == "copy"){
             const words = [...mystate.words].map((word) => WordBlock(word))
             const activeWord = ActiveWordBlock(mystate.activeWord)
@@ -165,22 +310,35 @@ export class TextWritingArea extends React.Component {
             const targetWords = mystate.targetWords
             const targetWordIndex = mystate.targetWordIndex
             const activeWord = mystate.activeWord
-            task_components = this.renderWordByWord(targetWords,targetWordIndex, activeWord)
+            const targetWordDisplayStartIndex = mystate.targetWordDisplayStartIndex
+            if (targetWords.length == 0){
+                task_components = <LoadMoreWordsInitialBlock/>
+            } else {
+            task_components = this.renderWordByWord(
+                targetWords,targetWordIndex,
+                activeWord,targetWordDisplayStartIndex
+                )
+            }
+            renderedwbwInfoArea = wbwInfoArea()
+            sizes = `max-h-[60vh] min-h-[60vh]`
         }
         return (
-            <div className={`flex flex-col h-100 rounded mx-5 px-2 py-1 ring-2 ring-current max-h-[80vh] min-h-[80vh] ${stateHandler.calibrator.calibrationResults === null? "hidden":""}`} onMouseEnter={(e) => { this.stateHandler.setRecordingState("enabled") }} onMouseLeave={(e) => stateHandler.setRecordingState("disabled")}>
-                <div className="flex items-end">
-                    <div className="flex-none mx-auto font-bold text-4xl mt-2">Writing Area</div>
-                    <div className='flex-none mx-2 text-l text-red-500 animate-pulse'>{recording}</div>
-                    <div className="flex-1"></div>
-                    <div className="flex-none mt-1">
-                        <ExperimentTypeSelector/>
+            <div>
+                <div className={`${classname} ${sizes} ${isHidden}`} onMouseEnter={mouse_enter} onMouseLeave={mouse_leave}>
+                    <div className="flex items-end">
+                        <div className="flex-none mx-auto font-bold text-4xl mt-2">Writing Area</div>
+                        <div className='flex-none mx-2 text-l text-red-500 animate-pulse'>{recording}</div>
+                        <div className="flex-1"></div>
+                        <div className="flex-none mt-1">
+                            <ExperimentTypeSelector/>
+                        </div>
+                        <div className="flex-none">
+                            <OpenSubmitModal></OpenSubmitModal>
+                        </div>
                     </div>
-                    <div className="flex-none">
-                        <OpenSubmitModal></OpenSubmitModal>
-                    </div>
+                    {task_components}
                 </div>
-                {task_components}
+                {renderedwbwInfoArea}
             </div>
         );
     }

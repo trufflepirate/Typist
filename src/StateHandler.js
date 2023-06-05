@@ -4,6 +4,8 @@ import { saveAs } from 'file-saver';
 import JSZip from "jszip";
 import UAParser from "ua-parser-js";
 import { DUMMYCSV, DUMMYLIST } from "./dummyData"
+import { PUT_getWords, PUT_verifyEmail } from './endpointRequests';
+import { getVocabFromClasses, selectRandomFromList, MINIMUM_INSTANCES_PER_WORD } from './WordGenerationUtils';
 
 const MIN_TIME_BETWEEN_KEYPRESS_MS = 200
 const CALBIRATION_KEY_REQUIRED_NUMBER = 100
@@ -21,6 +23,8 @@ export class Calibrator {
         this.calibrationResults = null;
         this.updateUI_args = uiUpdateFn;
         this.waitTimerHandle = null;
+
+        this.url_target = (new URLSearchParams(document.location.search)).get("pid")
 
         this.ArtificialEventTimers = []
 
@@ -80,7 +84,7 @@ export class Calibrator {
         const prevCalibration = this.getSavedCalibration()
         if (prevCalibration !== false) {
             this.calibrationResults = prevCalibration
-            const participantDetails = {ParticipantId:prevCalibration.ParticipantId, KeyboardModel:prevCalibration.KeyboardModel}
+            const participantDetails = {KeyboardModel:prevCalibration.KeyboardModel,ParticipantEmail:prevCalibration.ParticipantEmail}
             this.calibrationLog = new Array(100);
             this.stageState = "stage_review"
             this.updateUI_args("CalibrationUIStage", [this.stageState])
@@ -218,6 +222,13 @@ export class Calibrator {
         this.initCalibration()
     }
 
+    changeTarget(newPid){
+        const oldQueryParams = new URLSearchParams(document.location.search)
+        this.url_target = newPid
+        oldQueryParams.set("pid",newPid)
+        window.history.replaceState({}, "", "?" + oldQueryParams)
+    }
+
 }
 
 export class StateHandler {
@@ -248,18 +259,35 @@ export class StateHandler {
         // wordByWordTask States
         this.targetWords = new Array();
         // TODO: This is temp
-        this.targetWords = this.generateTargetWords([],DUMMY_WORDLIST)
+        this.previousWords = null
+        this.previousTotal = 0
+        this.neededWordCount = 1
+        this.loadingWords = false
+        // this.targetWords = this.generateTargetWords([],DUMMY_WORDLIST)
+        // this.targetWords = this.generateTargetWords([],['how','mother','interesting'])
+        this.targetWords = this.generateTargetWords([],[])
+
+
         this.targetWordIndex = 0;
+        this.targetWordDisplayStartIndex = 0;
         this.wordRecordCounts = new Map();
         this.wordRecordData= new Map();
+        this.wordErrorData = []
         this.wordRecordBuffer = new Array();
-        this.init_word_by_word(this.targetWords)
+        this.wordbywordStats = {correct:0,wrong:0}
+        this.update_wbw_dicts(this.targetWords,0)
 
         this.recordingstate = "disabled"; //"enabled","disabled","calibration"
-        this.experimentType = 'copy'
         this.UICallbacks = new Map();
 
         this.calibrator = new Calibrator(this.updateUI_args.bind(this))
+
+        // initial Setting of Experiment Type
+        const validExperimentTypes = ["copy", "wordbyword"]
+        const urlParams = new URLSearchParams(window.location.search);
+        this.preconfiguredExp = urlParams.get('exp') !== null
+        this.experimentType = urlParams.get('exp') || "copy"
+        
 
     }
 
@@ -407,13 +435,22 @@ export class StateHandler {
             this.wordRecordData.get(currentWord).push(currentBufferData)
             this.targetWords[this.targetWordIndex][1] = "recorded"
             this.targetWordIndex+=1
+            this.wordbywordStats.correct+=1
             console.log(`Word: ${currentWord} added to record.`)
 
         } else {
-            // do not add data, do not update the count, do not progress
+            // do not add data, do not update the count
             console.log(`Word: ${currentWord} not added to record. Reasons: match:${isTargetWord} timing:${isWithinTiming} notError:${!isContainError}`)
+            const errorWordDict = {
+                target:currentWord,
+                flags:{targ:isTargetWord,timing:isWithinTiming,noterror:!isContainError},
+                data:currentBufferData
+            }
+            this.wordErrorData.push(errorWordDict)
+        
             this.targetWords[this.targetWordIndex][1] = "notrecorded"
             this.targetWordIndex+=1
+            this.wordbywordStats.wrong+=1
         }
 
         // Reset Word State, update UI
@@ -495,6 +532,13 @@ export class StateHandler {
 
     handle_activeWordCaseWordByWord(kpType, keyCode, key, timeStamp) {
         // all active words are valid. Push to Keylog
+        if (this.targetWords.length===0 || this.targetWordIndex >= this.targetWords.length){
+            return 
+        }
+        if (this.loadingWords){
+            return
+        }
+
         this.keylog.push([kpType, keyCode, key, timeStamp])
         if (kpType == KEYDOWN_EVENT) {
             if (is_char(keyCode)) {
@@ -533,7 +577,7 @@ export class StateHandler {
                 this.updateUITextBox()
             } else if (is_paragraph(keyCode)) {
                 // same behavior as space
-                this.activeWord += key
+                this.activeWord += " "
                 this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
                 this.updateUITextBox()
             } else if (is_backspace(keyCode)) {
@@ -553,10 +597,12 @@ export class StateHandler {
         }
     }
 
-    init_word_by_word(targetWords) {
-        for (let i = 0; i < targetWords.length; i++) {
-            this.wordRecordCounts.set(targetWords[i][0], 0)
-            this.wordRecordData.set(targetWords[i][0], new Array())
+    update_wbw_dicts(targetWords, startindex) {
+        for (let i = startindex; i < targetWords.length; i++) {
+            if (!this.wordRecordCounts.has(targetWords[i][0])) {
+                this.wordRecordCounts.set(targetWords[i][0], 0)
+                this.wordRecordData.set(targetWords[i][0], new Array())
+            } 
         }
     }
 
@@ -574,11 +620,67 @@ export class StateHandler {
             activeWord: curr,
             targetWords: this.targetWords,
             targetWordIndex: this.targetWordIndex,
+            targetWordDisplayStartIndex: this.targetWordDisplayStartIndex,
             experimentType : this.experimentType
         }
         return state
     }
 
+    async requestForWords() {
+        const notEnoughCompleted = this.targetWords.length > this.targetWordIndex && this.targetWords.length!=0;
+        // console.log(this.targetWords.length,this.targetWordIndex)
+        // console.log(this.targetWords.length >= this.targetWordIndex)
+        // console.log(this.targetWords.length!=0)
+        // console.log(notEnoughCompleted)
+        if (this.loadingWords || notEnoughCompleted) {
+            console.log("ignored")
+            return
+        } else {
+            const participantEmail = this.calibrator.calibrationResults["ParticipantEmail"]
+            const ParticipantId = this.calibrator.calibrationResults["ParticipantId"]
+            this.loadingWords = true
+            this.updateUITextBox()
+            const requestResults = await PUT_getWords({ "email": participantEmail.toLowerCase() })
+            console.log(requestResults)
+            // process Results
+            if (requestResults["status"] === "retrieved") {
+                if (requestResults["data"] === "") {
+                    // First time user + loaded more
+                    this.previousTotal = 0 
+                    const newWords = getVocabFromClasses(["A1"])
+                    const newTargetList = selectRandomFromList(this.wordRecordCounts, new Map(), newWords, 500)
+                    const newTargetWords = this.generateTargetWords(this.targetWords, newTargetList)
+                    // updating state
+                    this.neededWordCount = newWords.length*MINIMUM_INSTANCES_PER_WORD
+                    console.log("needed WC:",this.neededWordCount)
+                    this.targetWords = newTargetWords
+                    this.targetWordDisplayStartIndex = 0
+                    this.update_wbw_dicts(this.targetWords, this.targetWordDisplayStartIndex) //todo:optimize
+                } else {
+                    // returning user
+                    const oldWords = new Map(Object.entries(JSON.parse(requestResults["data"])))
+                    let sum = 0
+                    oldWords.forEach((value, key) => {sum+=value})
+                    this.previousTotal = sum 
+                    const newWords = getVocabFromClasses(["A1"])
+                    const newTargetList = selectRandomFromList(oldWords, this.wordRecordCounts, newWords, 500)
+                    const newTargetWords = this.generateTargetWords(this.targetWords, newTargetList)
+                    // updating state
+                    this.neededWordCount = newWords.length*MINIMUM_INSTANCES_PER_WORD
+                    this.targetWords = newTargetWords
+                    this.targetWordDisplayStartIndex = 0
+                    this.update_wbw_dicts(this.targetWords, this.targetWordDisplayStartIndex)
+                }
+            } else {
+                // error
+                console.log("error")
+            }
+
+
+            this.loadingWords = false
+            this.updateUITextBox()
+        }
+    }
     
     // ***************
     // ---COPY TASK---
@@ -722,9 +824,12 @@ export class StateHandler {
             console.log(this.wordRecordData)
             const wordByWordData = JSON.stringify(Object.fromEntries(this.wordRecordData) )
             const wordRecordCounts = JSON.stringify(Object.fromEntries(this.wordRecordCounts))
+            const wordErrorData = JSON.stringify({"data":this.wordErrorData})
+            console.log(wordErrorData)
             return {
                 "wordData.json": wordByWordData,
-                "wordCounts.json": wordRecordCounts
+                "wordCounts.json": wordRecordCounts,
+                "wordErrorData.json": wordErrorData
             }
         } else {
             throw new Error("Invalid Task Type")
@@ -763,13 +868,19 @@ export class StateHandler {
 
         // Labelling and Naming
         const particpantID = this.calibrator.calibrationResults["ParticipantId"]
-        const email = this.calibrator.calibrationResults["Email"]
+        const email = this.calibrator.calibrationResults["ParticipantEmail"]
         const experimentType = this.experimentType
         const timestamp_now = Date.now()
         const params = {
             "pid": particpantID,
             "expType": experimentType,
-            "timestamp_now": timestamp_now
+            "timestamp_now": timestamp_now,
+            "email": email
+        }
+
+        if(experimentType == "wordbyword"){
+            const updateTarget = JSON.stringify( Object.fromEntries(this.wordRecordCounts))
+            params["updateData"] = updateTarget
         }
 
         // processing for save Target
