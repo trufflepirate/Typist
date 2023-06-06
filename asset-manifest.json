@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/Typist/static/css/main.ca2a72c9.css",
-    "main.js": "/Typist/static/js/main.bc2d7ac0.js",
+    "main.js": "/Typist/static/js/main.f0f01031.js",
     "index.html": "/Typist/index.html",
     "main.ca2a72c9.css.map": "/Typist/static/css/main.ca2a72c9.css.map",
-    "main.bc2d7ac0.js.map": "/Typist/static/js/main.bc2d7ac0.js.map"
+    "main.f0f01031.js.map": "/Typist/static/js/main.f0f01031.js.map"
   },
   "entrypoints": [
     "static/css/main.ca2a72c9.css",
-    "static/js/main.bc2d7ac0.js"
+    "static/js/main.f0f01031.js"
   ]
 }
