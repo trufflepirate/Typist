@@ -30,6 +30,7 @@ export function getVocabFromClasses(classes) {
         const isWordLen = entry[wordlenidx]>2
         return isWordLen && isClass
     })
+    console.log(`Required Words: ${MINIMUM_INSTANCES_PER_WORD*filteredVocab.length}`)
     return filteredVocab.map((entry)=>entry[0])
 }
 

@@ -6,6 +6,7 @@ import UAParser from "ua-parser-js";
 import { DUMMYCSV, DUMMYLIST } from "./dummyData"
 import { PUT_getWords, PUT_verifyEmail } from './endpointRequests';
 import { getVocabFromClasses, selectRandomFromList, MINIMUM_INSTANCES_PER_WORD } from './WordGenerationUtils';
+import { metadata } from './metadata';
 
 const MIN_TIME_BETWEEN_KEYPRESS_MS = 200
 const CALBIRATION_KEY_REQUIRED_NUMBER = 100
@@ -252,6 +253,7 @@ export class StateHandler {
         // Shared states
         this.activeWord = null;
         this.keylog = new Array();
+        this.keylogSeqNum = 0
 
         // Copy task States
         this.words = new Array();
@@ -521,8 +523,10 @@ export class StateHandler {
         if (kpType == KEYDOWN_EVENT) {
             if (is_char(keyCode)) {
                 this.activeWord = key
-                this.keylog.push([kpType, keyCode, key, timeStamp])
-                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                const seqNum = this.keylogSeqNum
+                this.keylog.push([kpType, keyCode, key, timeStamp,seqNum])
+                this.keylogSeqNum += 1
+                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                 this.updateUITextBox()
             }
         } else {
@@ -539,7 +543,9 @@ export class StateHandler {
             return
         }
 
-        this.keylog.push([kpType, keyCode, key, timeStamp])
+        const seqNum = this.keylogSeqNum
+        this.keylog.push([kpType, keyCode, key, timeStamp, seqNum])
+        this.keylogSeqNum += 1
         if (kpType == KEYDOWN_EVENT) {
             if (is_char(keyCode)) {
                 if (this.is_last_letter_whitespace(this.activeWord)) {
@@ -548,12 +554,12 @@ export class StateHandler {
                     // this.activeWord = key
 
                     this.activeWord += key
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                     this.updateUITextBox()
                 } else {
                     // continue Current word
                     this.activeWord += key
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                     // trigger early termination IF the word is the target word
                     if (this.activeWord.toLowerCase() == this.targetWords[this.targetWordIndex][0].toLowerCase()) {
                         this.processFinishedWord_wbw()
@@ -567,27 +573,27 @@ export class StateHandler {
                 // trigger early termination IF the word is the target word
                 else if (this.activeWord.toLowerCase() == this.targetWords[this.targetWordIndex][0].toLowerCase()) {
                     this.activeWord += key
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                     this.processFinishedWord_wbw()
                 } else {
                     // continue Current word
                     this.activeWord += key
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                 }
                 this.updateUITextBox()
             } else if (is_paragraph(keyCode)) {
                 // same behavior as space
                 this.activeWord += " "
-                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                 this.updateUITextBox()
             } else if (is_backspace(keyCode)) {
                 if (this.activeWord.length == 0) {
                     // Do Nothing to active words
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                     this.updateUITextBox()
                 } else {
                     this.activeWord = this.activeWord.slice(0, this.activeWord.length - 1)
-                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp])
+                    this.wordRecordBuffer.push([kpType, keyCode, key, timeStamp,seqNum])
                     this.updateUITextBox()
                 }
             }
@@ -810,9 +816,16 @@ export class StateHandler {
     logToString(){
         let baseString = ""
         this.keylog.forEach(entry => {
-            // [kpType,keyCode,key,timeStamp]
-            const addString = `${entry[0]},${entry[1]},${this.dumpHelper(entry[2])},${entry[3]}\n`
-            baseString += addString
+            // [kpType,keyCode,key,timeStamp,sequenceNumber]
+            if (entry.length == 4) {
+                const addString = `${entry[0]},${entry[1]},${this.dumpHelper(entry[2])},${entry[3]}\n`
+                baseString += addString
+            } else if (entry.length == 5){
+                const addString = `${entry[0]},${entry[1]},${this.dumpHelper(entry[2])},${entry[3]},${entry[4]}\n`
+                baseString += addString
+            } else {
+                throw new Error("Invalid Keylog Entry")
+            }
         });
         return baseString
     }
@@ -825,7 +838,6 @@ export class StateHandler {
             const wordByWordData = JSON.stringify(Object.fromEntries(this.wordRecordData) )
             const wordRecordCounts = JSON.stringify(Object.fromEntries(this.wordRecordCounts))
             const wordErrorData = JSON.stringify({"data":this.wordErrorData})
-            console.log(wordErrorData)
             return {
                 "wordData.json": wordByWordData,
                 "wordCounts.json": wordRecordCounts,
@@ -847,7 +859,9 @@ export class StateHandler {
 
         // Config and calibration Data
         const hwinfo = parsy.getResult()
-        const calibrationData = this.calibrator.calibrationResults
+        const calibrationData = {...this.calibrator.calibrationResults, exptype: this.experimentType}
+
+        const configData = {...calibrationData,...metadata}
 
         // Experiment Data
         const experimentLog = this.logToString(taskType)
@@ -857,7 +871,7 @@ export class StateHandler {
         // serialising and compression
         const myblob = new Blob([experimentLog], { type: "text/plain;charset=utf-8" });
         zipper.file("data.csv", myblob)
-        zipper.file("config.json", JSON.stringify(calibrationData))
+        zipper.file("config.json", JSON.stringify(configData))
         zipper.file("hardware.json", JSON.stringify(hwinfo))
         
         for (const d in experimentSpecificData){
