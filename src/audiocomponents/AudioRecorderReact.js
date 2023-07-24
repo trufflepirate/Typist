@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {QRCodeSVG} from 'qrcode.react';
+import NoSleep from 'nosleep.js';
 
 const RecordingButtonContainer = (props) => {
     const [recording, setRecording] = useState(false)
@@ -72,12 +73,12 @@ const WordsContainer = (props) => {
 
     const [state, updateState] = useState(
         {participantID: null, sessionID: null, word: null,
-            ip: "localhost", port: 8001
+            ip: window.location.hostname, port: 8001
         });
     const selected = state.word
     const session = state.sessionID
     const pid = state.participantID
-    const ip = state.url
+    const ip = state.ip
     const port = state.port
     
     const updateStateReal = useCallback((payload) => {
@@ -106,9 +107,9 @@ const WordsContainer = (props) => {
                     <div className='flex-1'/>
                     <div className='flex flex-row'>
                     <span className="label-text-alt">IP</span>
-                    <input type="text" placeholder="IP" className="input w-full max-w-xs input-xs mx-2" onChange={(e)=>{updateStateReal({ip:e.target.value})}}/>
+                    <input type="text" placeholder={ip} className="input w-full max-w-xs input-xs mx-2" onChange={(e)=>{updateStateReal({ip:e.target.value})}}/>
                     <span className="label-text-alt">Port</span>
-                    <input type="text" placeholder="port" className="input w-full max-w-[5rem] input-xs" onChange={(e)=>{updateStateReal({port:e.target.value})}}/>
+                    <input type="text" placeholder={port} className="input w-full max-w-[5rem] input-xs" onChange={(e)=>{updateStateReal({port:e.target.value})}}/>
                     </div>
                 </div>
                 <div className='flex flex-row'>
@@ -261,7 +262,8 @@ const RemoteDeviceRecorder = (props) => {
 
     
     
-    if (state.error !== null && state.error !== undefined){
+    if (state.error !== undefined){
+        if (state.error.length > 0){
         const stateJson = JSON.stringify(state,null,4)
         const currentLocation = window.location.origin
         // 
@@ -277,6 +279,7 @@ const RemoteDeviceRecorder = (props) => {
                 <a className="text-l link" href="chrome://flags/#unsafely-treat-insecure-origin-as-secure" target="_blank">Link To Enable Secure Context</a>
             </div>
         )
+        }
     }
 
     
@@ -286,13 +289,20 @@ const RemoteDeviceRecorder = (props) => {
     }
     if (audioBackend.AudioRecorder.state==="pre-init"){
         audioBackend.startAudioService()
+        const noSleep = new NoSleep();
+        noSleep.enable();
     }   
 
     const stateJson = JSON.stringify(state,null,4)
+    // parsing state
+
     const colors = state.state=='recording' ? "bg-red-500":"bg-slate-800" 
+    const wl =  'wakeLock' in navigator;
     return (
         <div className={`w-min-[100%] h-min-[100%]   ${colors}`}>
             <div className=' text-m whitespace-pre-wrap'>{stateJson}</div>
+            <br></br>
+            <div className=' text-m whitespace-pre-wrap'>{`canwl: ${wl}`}</div>
         </div>
             
     )
@@ -303,7 +313,7 @@ const AudioRecorderReact = (props) => {
     const audioBackend= props.audioBackend
     const recBtn = RecordingButtonContainer({audioBackend:audioBackend});
 
-    const wordsBase = ["use","any","there","see","only","so","his","when","contact","here","business"]
+    const wordsBase = ['difference', 'statement', 'festival', 'question', 'company', 'success', 'strong', 'thing', 'about', 'there', 'leave', 'child', 'will', 'year', 'this', 'life', 'make', 'list', 'long', 'that', 'news', 'then', 'good', 'want', 'end', 'the', 'and', 'new', 'day']
 
     let words  = {}
     for (let i = 0; i < wordsBase.length; i++) {

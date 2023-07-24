@@ -13,13 +13,20 @@ class RemoteMaster{
         const validState = ["idle", "start-waiting", "recording", "stop-waiting", "idle"]
         this.state = "idle"
         this.connectedDevices = []
+        this.syncronizationBeep = new Audio(window.location.origin + "/Typist/440hz.ogg")
+        this.syncronizationBeep.onpause = () => {
+            this.syncronizationBeep.currentTime = 0
+        }
+        console.log("created new Play!")
 
+        this.syncronizationBeep.loop = true
+        
 
         this.expDetails = {
             "participantID": null,
             "sessionID": null,
             "word":null,
-            "ip": "localhost", "port": 8001
+            "ip": window.location.hostname, "port": 8001
         }
 
         const WebSocketCallbacks = {
@@ -138,6 +145,7 @@ class RemoteMaster{
             return false
         } else {
             console.log(`Sending stop command`)
+            this.syncronizationBeep.pause()
             const msg = JSON.stringify({"type": "master_command", "id": this.name, "payload": "stopRecord"});
             this.RemoteWebSocket.send(msg)
             this.state = 'stop-waiting'
@@ -179,6 +187,7 @@ class RemoteMaster{
             console.log(`Unable to start recording for OK. Current state is ${this.state}`)
         } else {
             this.state = 'recording'
+            this.syncronizationBeep.play()
             console.log(`Recording started`)
         }
 
@@ -219,12 +228,13 @@ class RemoteMaster{
 
 
 class RemoteAudioDeviceClient{
-    constructor(url, name, callbacks) {
+    constructor(url, name, callbacks, video=false) {
         //
 
         const WebSocketCallbacks = {
             onMessage: this.onWebsocketMessage.bind(this),
             onOpen: this.onWebsocketOpen.bind(this),
+            onError : this.onError.bind(this),
         }
 
         const AudioRecorderCallbacks = {
@@ -232,9 +242,10 @@ class RemoteAudioDeviceClient{
             onStopRecording: this.onStopRecording.bind(this),
             onSendRecordingToServer: this.onSendRecordingToServer.bind(this),
             onError : this.onError.bind(this),
+            onInitMediaStream: this.onInitMediaStream.bind(this),
         }
 
-        this.AudioRecorder = new AudioRecorder(AudioRecorderCallbacks);   
+        this.AudioRecorder = new AudioRecorder(AudioRecorderCallbacks,video);   
         this.RemoteWebSocket = new RemoteWebSocket(url, name, WebSocketCallbacks);
         this.name = name
         this.uiCallbacks = {}
@@ -257,6 +268,10 @@ class RemoteAudioDeviceClient{
         }
     }
 
+    onInitMediaStream(event){
+        this.callUICallback("global")
+    }
+
     onWebsocketOpen(event) {
         this.callUICallback("global")
     }
@@ -265,7 +280,7 @@ class RemoteAudioDeviceClient{
         const data =JSON.parse(event.data)
         if ((data.type === "command")){
             if (data.payload === "startRecord") {
-                this.AudioRecorder.startRecording();
+                this.AudioRecorder.startRecording(data.details);
             }
             else if (data.payload === "stopRecord") {
                 this.AudioRecorder.stopRecording();
@@ -275,8 +290,9 @@ class RemoteAudioDeviceClient{
             }
             else if (data.payload === "saveRecord") {
                 // return the results
-                const meta = {deviceID: this.name, }
-                const res = this.AudioRecorder.sendRecordingToServer()
+                
+                const meta = {deviceID: this.name,audioRecorderState:this.AudioRecorder.state,extra:this.AudioRecorder.extra }
+                const res = this.AudioRecorder.sendRecordingToServer(meta)
             }
             this.callUICallback("global")
         }
@@ -291,6 +307,9 @@ class RemoteAudioDeviceClient{
 
     onStopRecording() {
         const msg = JSON.stringify({"type": "command_reply", "id": this.name, "payload": "stopRecordOK"});
+
+        // potentially save to local storage here
+
         this.RemoteWebSocket.send(msg);
         this.callUICallback("global")
     }
@@ -303,9 +322,10 @@ class RemoteAudioDeviceClient{
     }
 
     onError(errMsg) {
+        this.callUICallback("global")
         const msg = JSON.stringify({"type": "command_reply", "id": this.name, "payload": errMsg});
         this.RemoteWebSocket.send(msg);
-        this.callUICallback("global")
+        // this.callUICallback("global")
     }
 
     connect(){

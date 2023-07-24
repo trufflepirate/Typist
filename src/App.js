@@ -27,7 +27,7 @@ function oneTimeLocationCheckbecauseImNotGoingtoUseReactRouter(){
     const master = new RemoteMaster(parseURL('localhost', 8001),"master", cbacks );
     return <AudioRecorderReact audioBackend = {master}/>
 
-  } else if(location === "/Typist/RemoteRecorder"){
+  } else if(location === "/Typist/RemoteRecorder" || location === "/Typist/RemoteVideo"){
     const urlParams = new URLSearchParams(window.location.search);
     const ip = urlParams.get('ip') || null
     const port = urlParams.get('port') || null
@@ -37,8 +37,13 @@ function oneTimeLocationCheckbecauseImNotGoingtoUseReactRouter(){
       return <div className=' text-2xl text-red-600'>"Error: ip or port not specified"</div>
     }
 
-    const client = new RemoteAudioDeviceClient(parseURL(ip, port), name)
-    return <RemoteDeviceRecorder audioBackend = {client} />
+    if (location === "/Typist/RemoteVideo"){
+      const client = new RemoteAudioDeviceClient(parseURL(ip, port), name, undefined, true)
+      return <RemoteDeviceRecorder audioBackend = {client} />
+    } else {
+      const client = new RemoteAudioDeviceClient(parseURL(ip, port), name ,undefined, false)
+      return <RemoteDeviceRecorder audioBackend = {client} />
+    }
 
   } else {
     return "default"
