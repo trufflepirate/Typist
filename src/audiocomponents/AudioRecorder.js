@@ -314,10 +314,9 @@ class AudioRecorder {
             // adding data 
             const data = { 'metadata': this.metadata }
             if (this.doVideo) {
-
                 // Video Takes to long to transfer
                 // just Send the metadata
-                // data['video'] = this.results
+                data['video'] = this.results
             } else {
                 data['audio'] = this.results
             }

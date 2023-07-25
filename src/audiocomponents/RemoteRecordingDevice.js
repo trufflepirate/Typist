@@ -19,7 +19,7 @@ class RemoteMaster{
         }
         console.log("created new Play!")
 
-        this.syncronizationBeep.loop = true
+        this.syncronizationBeep.loop = false
         
 
         this.expDetails = {
