@@ -313,7 +313,9 @@ const AudioRecorderReact = (props) => {
     const audioBackend= props.audioBackend
     const recBtn = RecordingButtonContainer({audioBackend:audioBackend});
 
-    const wordsBase = ['difference', 'statement', 'festival', 'question', 'company', 'success', 'strong', 'thing', 'about', 'there', 'leave', 'child', 'will', 'year', 'this', 'life', 'make', 'list', 'long', 'that', 'news', 'then', 'good', 'want', 'end', 'the', 'and', 'new', 'day']
+    // const wordsBase = ['difference', 'statement', 'festival', 'question', 'company', 'success', 'strong', 'thing', 'about', 'there', 'leave', 'child', 'will', 'year', 'this', 'life', 'make', 'list', 'long', 'that', 'news', 'then', 'good', 'want', 'end', 'the', 'and', 'new', 'day']
+
+    const wordsBase = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R", "S","T","U","V","W","X","Y","Z","ASDFGHJKL","LKJHGFDSA","QWERTYUIOP","POIUYTREWQ","ZXCVBNM","MNBVCXZ", "hello", "world"]
 
     let words  = {}
     for (let i = 0; i < wordsBase.length; i++) {

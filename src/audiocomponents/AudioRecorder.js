@@ -65,10 +65,11 @@ function checkMIMETYPES() {
 }
 
 class AudioRecorder {
-    constructor(callbacks, video = false) {
+    constructor(callbacks, video = false, name = undefined) {
         //media strea
         this.recorder = null;
         this.doVideo = video
+        this.name = name
 
         //states
         this.audioChunks = [];
@@ -99,11 +100,10 @@ class AudioRecorder {
                 this.extra.devices = audioDevices
                 const SpeakerPhone = devices.filter(device => device.label === 'Speakerphone')
                 const Earpiece = devices.filter(device => device.label === 'Headset earpiece')
-                
-                const special = devices.filter(device => device.deviceId === '1a58e267d93a4668c66e214b992f99c648388ec75155a3ff5e715f4ab1d97839')
 
                 let preferredDevice = 'default'
                 let deviceId = 'default'
+                let videoID = undefined
 
 
                 if (SpeakerPhone.length > 0) {
@@ -112,18 +112,31 @@ class AudioRecorder {
                 } else if (Earpiece.length > 0) {
                     preferredDevice = 'Headset earpiece'
                     deviceId = Earpiece[0].deviceId
-                } else if (special.length > 0) {
-                    preferredDevice = 'special'
-                    deviceId = special[0].deviceId
                 }
-                this.extra.preferredDevice = { preferredDevice: preferredDevice, deviceId: deviceId }
 
                 console.log(audioDevices)
+
+                if (this.name === "laptopAKG") {
+                    // const special = devices.filter(device => device.deviceId === '744133bdedacbab1ca8a27903be00a621e6811a0c892f7a474a4ef698e604752')
+
+                    preferredDevice = 'AKG'
+                    deviceId = 'default'
+                } else if (this.name === "laptopWebcam") {
+                    const special = devices.filter(device => device.deviceId === 'f29b8e64e9e95cdead7dac4ca61ee36166fa4d2c42bba36074b6ae8bd63930d3')
+                    preferredDevice = 'WebCam'
+                    deviceId = special[0].deviceId
+
+                    const specialVideo = devices.filter(device =>device.deviceId === 'bd71ec4b431cb7a7da1d3ff4c2109959df5f10135fcd86a6c367f40a880cd3ef')
+                    videoID = specialVideo[0].deviceId
+
+                }
+                this.extra.preferredDevice = { preferredDevice: preferredDevice, deviceId: deviceId, videoID: videoID }
+
             }).then(() => {
                 const dev = this.extra.preferredDevice
                 const audioConstraints = {
-                    deviceId: { ideal: dev.deviceId },
-                    sampleRate: { 'ideal': 48000 },
+                    deviceId: { 'ideal': dev.deviceId },
+                    sampleRate: { 'exact': 48000 },
                     sampleSize: { 'ideal': 16 },
                     channelCount: { 'ideal': 2 },
                     echoCancellation: { 'exact': false },
@@ -132,6 +145,7 @@ class AudioRecorder {
                 }
 
                 const videoConstraints = {
+                    deviceId: { 'ideal': dev.videoID },
                     width: { 'ideal': 1080 },
                     height: { 'ideal':  1920},
                     frameRate: { 'ideal': 60 },
@@ -256,6 +270,17 @@ class AudioRecorder {
         // wrapping File
         try {
             const audioBlob = new Blob(this.audioChunks);
+            if (this.doVideo) {
+                if (this.extra.details !== undefined) {
+                    // {"participantID":self.session_participant_name,"sessionID":self.session_id,"word":self.session_word}
+                    const c_pid = this.extra.details.participantID
+                    const c_sid = this.extra.details.sessionID
+                    const c_word = this.extra.details.word
+                    const c_word_instance_id = this.extra.details.wordInstanceID
+                    saveAs(audioBlob, `${c_pid}_${c_sid}_${c_word}_${c_word_instance_id}.webm`);
+                }
+            }
+
             const reader = new FileReader();
             reader.readAsDataURL(audioBlob);
             reader.onloadend = () => {
@@ -268,7 +293,7 @@ class AudioRecorder {
                 // update state
                 this.results = base64Audio;
                 this.state = "awaiting-retrieval";
-                if (this.doVideo || true) {
+                if (!this.doVideo ) {
                     var vid = new Blob([this.results], {type: "text/plain;charset=utf-8"})
                     if (this.extra.details !== undefined) {
                         // {"participantID":self.session_participant_name,"sessionID":self.session_id,"word":self.session_word}
@@ -316,7 +341,9 @@ class AudioRecorder {
             if (this.doVideo) {
                 // Video Takes to long to transfer
                 // just Send the metadata
-                data['video'] = this.results
+                if (this.name === "laptopWebcam"){
+                    data['video'] = this.results
+                }
             } else {
                 data['audio'] = this.results
             }

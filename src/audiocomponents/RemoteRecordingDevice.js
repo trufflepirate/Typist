@@ -245,7 +245,7 @@ class RemoteAudioDeviceClient{
             onInitMediaStream: this.onInitMediaStream.bind(this),
         }
 
-        this.AudioRecorder = new AudioRecorder(AudioRecorderCallbacks,video);   
+        this.AudioRecorder = new AudioRecorder(AudioRecorderCallbacks,video,name);   
         this.RemoteWebSocket = new RemoteWebSocket(url, name, WebSocketCallbacks);
         this.name = name
         this.uiCallbacks = {}
