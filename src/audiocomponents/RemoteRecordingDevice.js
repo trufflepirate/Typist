@@ -2,6 +2,15 @@ import RemoteWebSocket from "./RemoteWebsocket.js";
 import AudioRecorder from "./AudioRecorder.js";
 
 
+/**
+ * Represents a remote master device that controls recording and synchronization of audio devices.
+ * @class
+ * @constructor
+ * @param {string} url - The URL of the remote websocket server.
+ * @param {Object} callbacks - An object containing callback functions for handling websocket events.
+ * @param {function} callbacks.onMessage - The function to be called when a websocket message is received.
+ * @param {function} callbacks.onOpen - The function to be called when the websocket connection is opened.
+ */
 class RemoteMaster{
     constructor(url, callbacks) {
         const name = "master"
@@ -228,6 +237,14 @@ class RemoteMaster{
 
 
 class RemoteAudioDeviceClient{
+    /**
+     * Creates a new RemoteRecordingDevice instance.
+     * @constructor
+     * @param {string} url - The URL of the remote WebSocket server.
+     * @param {string} name - The name of the recording device.
+     * @param {Object} callbacks - Not used. Use Hook UiCallbacks to enable callbacks.Only the 'global' callback is called on each event.
+     * @param {boolean} [video=false] - Whether or not to record video along with audio.
+     */
     constructor(url, name, callbacks, video=false) {
         //
 
@@ -252,9 +269,15 @@ class RemoteAudioDeviceClient{
 
     }
 
+    /**
+     * Registers a callback function to be called when a specific event occurs in the UI.
+     * @param {string} callbackID - The ID of the callback function to register.
+     * @param {function} callback - The callback function to register.
+     */
     hookUiCallback(callbackID,callback){
         this.uiCallbacks[callbackID] = callback
     }
+
     callUICallback(callbackID){
         const state = {
             name: this.name,

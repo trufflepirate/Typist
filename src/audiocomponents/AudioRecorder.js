@@ -1,3 +1,4 @@
+
 import { saveAs } from 'file-saver';
 
 
@@ -64,6 +65,19 @@ function checkMIMETYPES() {
     return results
 }
 
+
+
+/**
+ * AudioRecorder class for recording audio and video streams.
+ * @class
+ * @param {Object} callbacks - Object containing callback functions for various events.
+ * @param {Function} callbacks.onInitMediaStream - Callback function to be called when media stream is initialized.
+ * @param {Function} callbacks.onStartRecording - Callback function to be called when recording starts.
+ * @param {Function} callbacks.onStopRecording - Callback function to be called when recording stops.
+ * @param {Function} callbacks.onError - Callback function to be called when an error occurs.
+ * @param {boolean} [video=false] - Flag indicating whether to record video along with audio.
+ * @param {string} [name=undefined] - Name of the audio recorder.
+ */
 class AudioRecorder {
     constructor(callbacks, video = false, name = undefined) {
         //media strea
@@ -270,6 +284,7 @@ class AudioRecorder {
         // wrapping File
         try {
             const audioBlob = new Blob(this.audioChunks);
+            
             if (this.doVideo) {
                 if (this.extra.details !== undefined) {
                     // {"participantID":self.session_participant_name,"sessionID":self.session_id,"word":self.session_word}
@@ -380,4 +395,26 @@ class AudioRecorder {
     }
 }
 
+class TizenSensorRecorder{
+    constructor(callbacks, video = false, name = undefined) {
+        //media strea
+        this.recorder = null;
+        this.doVideo = video
+        this.name = name
+
+        //states
+        this.audioChunks = [];
+        this.results = null;
+        this.state = "pre-init"
+        this.videoState = "pre-init"
+
+        this.metadata = {}
+        this.callbacks = callbacks;
+        this.extra = {}
+        this.error = []
+
+        // this.extra.supportedTypes = checkMIMETYPES()
+
+    }
+}
 export default AudioRecorder;
